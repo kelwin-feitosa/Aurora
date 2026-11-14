@@ -36,7 +36,7 @@ export interface RemoteMessage {
   /** Provider text was cropped or MIME traversal hit a safety cap. Never auto-act on partial evidence. */
   textIncomplete?:boolean;
 }
-export interface SyncPage {messages: Array<{id:string;revision:string}>; nextPage:string|null; nextCursor:string|null; anchor?:string|null;}
+export interface SyncPage {messages: Array<{id:string;revision:string; envelope?:import('./domain/monitoring.ts').MessageEnvelope}>; nextPage:string|null; nextCursor:string|null; anchor?:string|null;}
 export interface Connection {
   id:string; provider:ProviderId; account_hint:string; token_ciphertext:string;
   calendar_id:string|null; sync_cursor:string|null; sync_page:string|null;

@@ -155,3 +155,32 @@ test('2.4 reavaliação não contorna bloqueio explícito ou opt-out sensível',
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM monitoring_skips').first()).n,2);
  }finally{close();}
 });
+
+test('2.4 Outlook reaproveita metadados da página delta sem segunda consulta HTTP',async()=>{
+ const {env,db,close}=setup();try{
+  await insert(env,'m24','outlook');
+  const now=Date.now();let delta=0,metadata=0,full=0;
+  const http={fetch:async(url)=>{
+   const u=String(url);
+   if(u.includes('/messages/delta')){delta++;assert.match(u, /%24select|\\$select/);
+    return fakeResponse({value:[{id:'m24one',subject:'Cupom exclusivo',from:{emailAddress:{address:'ofertas@loja.test'}},receivedDateTime:'2026-11-10T12:00:00Z'}],'@odata.deltaLink':'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=1'});}
+   if(u.includes('/me/messages/m24one?')){if(u.includes('body,bodyPreview'))full++;else metadata++;return fakeResponse({});}
+   throw new Error('Unexpected '+u);
+  }};
+  await runCycle(env,http,now);
+  assert.equal(delta,1);assert.equal(metadata,0);assert.equal(full,0);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM monitoring_skips').first()).n,1);
+ }finally{close();}
+});
+test('2.4 Outlook usa fallback se delta antigo não trouxe remetente',async()=>{
+ const {env,close}=setup();try{
+  await insert(env,'m24','outlook');let metadata=0;
+  const http={fetch:async(url)=>{
+   const u=String(url);
+   if(u.includes('/messages/delta'))return fakeResponse({value:[{id:'missingFrom',subject:'Cupom exclusivo'}],'@odata.deltaLink':'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=2'});
+   if(u.includes('/me/messages/missingFrom?')){metadata++;return fakeResponse({id:'missingFrom',subject:'Cupom exclusivo',from:{emailAddress:{address:'ofertas@loja.test'}}});}
+   throw new Error('Unexpected '+u);
+  }};
+  await runCycle(env,http,Date.now());assert.equal(metadata,1);
+ }finally{close();}
+});

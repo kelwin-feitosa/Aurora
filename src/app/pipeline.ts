@@ -48,11 +48,13 @@ export async function syncConnection(env:Env,conn:Connection,http:ProviderHTTP={
   if(!env.DB.batch)throw new Error('DB_ATOMIC_BATCH_REQUIRED');
   await env.DB.batch(statements);
   const pending=await pendingInbox(env.DB,conn.id,now,maxMessages);
+  // Cache only this provider page in memory; no private header persistence in D1.
+  const pageEnvelopes=new Map(page.messages.filter(m=>m.envelope).map(m=>[m.id,m.envelope!]));
   let usedMailReads=usage.mail_reads;
   for(const row of pending){
    if(usedMailReads>=maxDaily)break;
    try{
-    const envelope=await impl.fetchEnvelope(token,row.remote_id);
+    const envelope=pageEnvelopes.get(row.remote_id)??await impl.fetchEnvelope(token,row.remote_id);
     const choice=triageEnvelope(envelope,rules);
     // A voluntary rescan must not silently apply the same filter again.
     // Explicit blocklists and sensitive-category opt-out remain authoritative.
