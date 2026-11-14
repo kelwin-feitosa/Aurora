@@ -54,7 +54,10 @@ export async function syncConnection(env:Env,conn:Connection,http:ProviderHTTP={
    try{
     const envelope=await impl.fetchEnvelope(token,row.remote_id);
     const choice=triageEnvelope(envelope,rules);
-    if(!shouldRead(choice,rules)){
+    // A voluntary rescan must not silently apply the same filter again.
+    // Explicit blocklists and sensitive-category opt-out remain authoritative.
+    const protectedSkip=choice.reason==='EXPLICITLY_BLOCKED_SOURCE'||choice.reason==='SENSITIVE_CATEGORY_OPT_OUT';
+    if(!shouldRead(choice,rules)&&(row.force_full_read!==1||protectedSkip)){
      await recordFiltered(env.DB,conn.id,row.id,choice.reason,now);
      continue;
     }
@@ -63,7 +66,7 @@ export async function syncConnection(env:Env,conn:Connection,http:ProviderHTTP={
     const results=applyAutomationPolicy(env,msg,evaluateScope(msg,rules));
     const items=await saveDecisions(env.DB,row,results,now);
     for(const item of items)await queueEvent(env.DB,item,now);
-    await env.DB.prepare("UPDATE inbox SET state='done',last_error=NULL WHERE id=?").bind(row.id).run();
+    await env.DB.prepare("UPDATE inbox SET state='done',last_error=NULL,force_full_read=0 WHERE id=? AND connection_id=?").bind(row.id,conn.id).run();
    }catch(e){
     const code=errCode(e),attempts=row.attempts+1;
     const retry=attempts<5;

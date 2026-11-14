@@ -167,16 +167,18 @@ export async function handle(req:Request,env:Env):Promise<Response>{
    const cid=rescanRoute[1]!,now=Date.now();
    // Bounded atomic requeue. No direct remote calendar action or cursor reset.
    if(!env.DB.batch)throw new Error('DB_ATOMIC_BATCH_REQUIRED');
-   const ids=(await env.DB.prepare('SELECT inbox_id FROM monitoring_skips WHERE connection_id=? AND at>=? ORDER BY at DESC LIMIT 12').bind(cid,now-30*86400000).all<{inbox_id:number}>()).results.map(x=>x.inbox_id);
+   const ids=(await env.DB.prepare(`SELECT inbox_id FROM monitoring_skips WHERE connection_id=? AND at>=?
+     AND reason IN ('UNRECOGNIZED_SOURCE','UNRECOGNIZED_PERSONAL_SOURCE','PROMOTIONAL_SUBJECT','SENDER_UNVERIFIED_OR_MALFORMED')
+     ORDER BY at DESC LIMIT 12`).bind(cid,now-30*86400000).all<{inbox_id:number}>()).results.map(x=>x.inbox_id);
    if(ids.length){
     const placeholders=ids.map(()=>'?').join(',');
     await env.DB.batch([
-     env.DB.prepare(`UPDATE inbox SET state='queued',attempts=0,next_attempt_at=0,last_error=NULL WHERE id IN (${placeholders}) AND connection_id=?`).bind(...ids,cid),
+     env.DB.prepare(`UPDATE inbox SET state='queued',attempts=0,next_attempt_at=0,last_error=NULL,force_full_read=1 WHERE id IN (${placeholders}) AND connection_id=?`).bind(...ids,cid),
      env.DB.prepare(`DELETE FROM monitoring_skips WHERE inbox_id IN (${placeholders}) AND connection_id=?`).bind(...ids,cid)
     ]);
    }
    await audit(env.DB,'MONITORING_RESCAN_REQUESTED',ids.length?'BATCH':'EMPTY');
-   return json({ok:true,requeued:ids.length,notice:'As mensagens selecionadas serão reavaliadas nas próximas verificações, sujeitas ao orçamento gratuito.'});
+   return json({ok:true,requeued:ids.length,notice:'As mensagens elegíveis terão o conteúdo consultado uma vez após confirmação. Bloqueios explícitos e assuntos sensíveis desativados continuam protegidos.'});
   }
   const monitoringRoute=route.match(/^\/api\/connections\/(conn_[a-f0-9]{32}|[a-zA-Z0-9_-]{1,60})\/monitoring$/);
   if(monitoringRoute&&req.method==='POST'){

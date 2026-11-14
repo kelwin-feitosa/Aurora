@@ -110,3 +110,48 @@ test('opt-out sensível não é contornado por remetente na allowlist',()=>{
  assert.equal(triageEnvelope({id:'a',sender:'banco@banco.com',subject:'Sua fatura vence dia 20',receivedAt:''},rule).action,'skip');
  assert.equal(triageEnvelope({id:'a',sender:'banco@banco.com',subject:'Sua fatura vence dia 20',receivedAt:''},{...rule,sensitive_opt_in:true}).action,'read');
 });
+
+test('2.4 rescan autorizado lê o corpo mesmo com o mesmo assunto vago, uma única vez',async()=>{
+ const {env,db,close}=setup();try{
+  await insert(env,'g24','gmail');
+  const now=Date.now();
+  await db.prepare("INSERT INTO inbox(connection_id,remote_id,remote_revision,received_at) VALUES('g24','msg24','0',?)").bind(now).run();
+  const row=await db.prepare("SELECT id FROM inbox WHERE remote_id='msg24'").first();
+  await recordFiltered(db,'g24',row.id,'UNRECOGNIZED_SOURCE',now);
+  let full=0,metadata=0;
+  const http={fetch:async(url)=>{
+   const u=String(url);
+   if(u.endsWith('/profile'))return fakeResponse({historyId:'101'});
+   if(u.includes('/messages?'))return fakeResponse({messages:[]});
+   if(u.includes('/messages/msg24?format=metadata')){metadata++;return fakeResponse({id:'msg24',payload:{headers:[{name:'From',value:'docente@externo.test'},{name:'Subject',value:'Olá'}]}});}
+   if(u.includes('/messages/msg24?format=full')){full++;return fakeResponse({id:'msg24',internalDate:String(now),payload:{mimeType:'text/plain',headers:[{name:'From',value:'docente@externo.test'},{name:'Subject',value:'Olá'}],body:{data:Buffer.from('Prova de cálculo em 20/11/2026 às 14h.').toString('base64url')}}});}
+   throw new Error('Unexpected '+u);
+  }};
+  const session=await issueSession(env);
+  const response=await handle(new Request(env.PUBLIC_ORIGIN+'/api/connections/g24/monitoring/rescan',{method:'POST',headers:{Cookie:sessionCookie(session),Origin:env.PUBLIC_ORIGIN,'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}),env);
+  assert.equal(response.status,200);assert.equal((await response.json()).requeued,1);
+  assert.equal((await db.prepare("SELECT force_full_read FROM inbox WHERE id=?").bind(row.id).first()).force_full_read,1);
+  const {syncConnection}=await import('../src/app/pipeline.ts');
+  const conn=await db.prepare("SELECT * FROM connections WHERE id='g24'").first();
+  await syncConnection(env,conn,http,now+1000);
+  assert.equal(metadata,1);assert.equal(full,1);
+  assert.equal((await db.prepare("SELECT force_full_read FROM inbox WHERE id=?").bind(row.id).first()).force_full_read,0);
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM academic_items WHERE inbox_id=?").bind(row.id).first()).n,1);
+  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM monitoring_skips WHERE inbox_id=?").bind(row.id).first()).n,0);
+ }finally{close();}
+});
+test('2.4 reavaliação não contorna bloqueio explícito ou opt-out sensível',async()=>{
+ const {env,db,close}=setup();try{
+  await insert(env,'g24','gmail');const now=Date.now();
+  for(const [id,reason] of [['blocked24','EXPLICITLY_BLOCKED_SOURCE'],['sensitive24','SENSITIVE_CATEGORY_OPT_OUT']]){
+   await db.prepare("INSERT INTO inbox(connection_id,remote_id,remote_revision,received_at) VALUES('g24',?,'0',?)").bind(id,now).run();
+   const row=await db.prepare("SELECT id FROM inbox WHERE remote_id=?").bind(id).first();
+   await recordFiltered(db,'g24',row.id,reason,now);
+  }
+  const session=await issueSession(env);
+  const response=await handle(new Request(env.PUBLIC_ORIGIN+'/api/connections/g24/monitoring/rescan',{method:'POST',headers:{Cookie:sessionCookie(session),Origin:env.PUBLIC_ORIGIN,'Content-Type':'application/json'},body:'{"confirm":true}'}),env);
+  assert.equal(response.status,200);assert.equal((await response.json()).requeued,0);
+  assert.equal((await db.prepare('SELECT SUM(force_full_read) AS n FROM inbox').first()).n,0);
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM monitoring_skips').first()).n,2);
+ }finally{close();}
+});

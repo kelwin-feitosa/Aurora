@@ -61,7 +61,7 @@ function renderMonitoring(connections){
   const pending=Number((state.data?.monitoringSkips||[]).find(x=>x.connection_id===conn.id)?.total||0);
   wrapper.append(el('p','muted small',counts+' decisões históricas de triagem por metadados. '+pending+' mensagens marcadas como dispensadas. O Aurora pode deixar avisos importantes de fora se suas fontes não estiverem configuradas.'));
   if(pending){const rescan=button('Reavaliar até 12 mensagens dispensadas',async()=>{
-   if(!window.confirm('Reavaliar mensagens dispensadas dos últimos 30 dias? Isso pode consumir mais chamadas de API. O Aurora não criará compromissos sem sua confirmação.'))return;
+   if(!window.confirm('Ler o conteúdo completo de até 12 mensagens dispensadas dos últimos 30 dias? Isso pode consumir mais chamadas de API. Fontes bloqueadas e assuntos sensíveis desativados continuam excluídos. O Aurora não criará compromissos sem sua confirmação.'))return;
    try{const out=await api('/api/connections/'+conn.id+'/monitoring/rescan',{method:'POST',body:{confirm:true}});inform(out.requeued+' mensagens colocadas na fila. '+out.notice);await refresh();}catch(e){inform(e.message);}
   });wrapper.append(rescan);}
 

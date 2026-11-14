@@ -47,6 +47,8 @@ export interface Connection {
 export interface InboxRow {
  id:number; connection_id:string;remote_id:string;remote_revision:string;
  state:'queued'|'done'|'retry';attempts:number;next_attempt_at:number;last_error:string|null;received_at:number;
+ /** Bounded, explicitly requested full review of a previously filtered message. */
+ force_full_read:number;
 }
 export interface AcademicItem {
  id:string;connection_id:string;inbox_id:number;kind:'event'|'task'|'notice'|'review';

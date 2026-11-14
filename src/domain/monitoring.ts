@@ -91,6 +91,6 @@ export async function recordFiltered(db:DB,connectionId:string,inboxId:number,re
  // Trigger counts a skipped message once, even after a retry. Never persist headers/body.
  await db.batch([
   db.prepare('INSERT OR IGNORE INTO monitoring_skips(inbox_id,connection_id,reason,at) VALUES(?,?,?,?)').bind(inboxId,connectionId,reason,now),
-  db.prepare("UPDATE inbox SET state='done',last_error=NULL WHERE id=? AND connection_id=?").bind(inboxId,connectionId)
+  db.prepare("UPDATE inbox SET state='done',last_error=NULL,force_full_read=0 WHERE id=? AND connection_id=?").bind(inboxId,connectionId)
  ]);
 }
