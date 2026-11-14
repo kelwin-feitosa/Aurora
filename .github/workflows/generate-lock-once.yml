@@ -1,0 +1,35 @@
+name: One-time dependency lock generation
+on:
+  push:
+    branches: [feature/aurora-2.3]
+    paths: ['.github/workflows/generate-lock-once.yml']
+permissions:
+  contents: read
+jobs:
+  lock:
+    if: github.repository == 'kelwin-feitosa/Aurora' && github.ref == 'refs/heads/feature/aurora-2.3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve dependencies from the official npm registry and validate a real lockfile
+        run: |
+          test ! -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          node -e "const p=require('./package-lock.json'); if(p.name !== 'aurora-academico'||!p.packages?.['node_modules/typescript']||!p.packages?.['node_modules/wrangler']) process.exit(1)"
+          npm ci --ignore-scripts --no-audit --no-fund
+      - name: Commit only the lockfile to this development branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- package-lock.json
+          git diff --cached --exit-code && exit 1
+          git commit -m "chore: resolve reproducible npm lockfile for Aurora 2.3"
+          git push origin HEAD:feature/aurora-2.3
