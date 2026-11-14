@@ -13,7 +13,7 @@ Achado F03: métodos Push ignoravam o parâmetro de sessão, revelando e revogan
 
 Achado F04: Outlook pedia envelope em GET separado apesar de já poder receber esses campos no delta. **Otimizado** por reaproveitamento só em memória, com fallback para delta antigos, sem persistir remetente no banco.
 
-Achados não resolvidos: F01 confiança em From na autoconfirmação opt-in, F05 custos/CPU/quotas reais não medidos, F07 falso negativo de assunto genérico; ver AUDIT/FINDINGS.md.
+Achado F01 mitigado no commit cd05e0ad: autoaprovação por From **desativada**; testes de integração agora usam confirmação autenticada explícita. Essa alteração remove intencionalmente o comportamento inseguro do modo trusted-senders. Pendentes: F05 custos/CPU/quotas reais não medidos, F07 falsos negativos em assuntos genéricos e homologações externas; ver AUDIT/FINDINGS.md.
 
 ## Gates esperados
 

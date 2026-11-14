@@ -16,7 +16,7 @@ Data: 2026-11-14. Horizonte solicitado: 2026-11 até 2027-10. Todas as projeçõ
 - Um mailbox ativo atendido por ciclo, até 1–2 mensagens por ciclo conforme configuração SYNC_LIMIT, com budget interno de 16 chamadas ao provedor/ciclo e reserva diária de 500 chamadas.
 - Se hipoteticamente houver 100 mensagens novas/dia com 25% dos assuntos reconhecidos, o modelo de Gmail exige 100 GET metadata + 25 GET full, consumindo 3.500 unidades em vez de 6.000 por GET full, sem considerar list/history, anexos, retries ou refresh.
 - O sistema pode perder mensagens relevantes com assunto genérico; a economia não compensa perda de recall. Não existe economia absoluta quando mais que 2/3 dos itens precisa de full read.
-- D1 offline mediu 39/37 **instruções SQL por rodada sintética**; isso NÃO representa rows read/write, latência ou CPU. Sem Cloudflare real não é válido multiplicar por 96 e concluir que está dentro do Free.
+- D1 offline mediu 39/37 **instruções SQL por rodada sintética** no fluxo antigo com autoconfirmação. Com revisão humana obrigatória a execução automática de triagem passou a 23/21 instruções no mesmo gerador, **mas sem operação de calendário no ciclo**; os números não são comparação justa de otimização. Nenhum deles representa rows read/write, latência ou CPU. Sem Cloudflare real não é válido multiplicar por 96 e concluir que está dentro do Free.
 - Gmail projeto e limite são compartilhados por instalações que usam mesmo app OAuth. Diversas instalações podem somar consumo, tornando extrapolação por estudante inválida.
 - Outros custos potenciais: domínio customizado, autenticação/consentimento institucional, infraestrutura de suporte, alertas, transferência, e tempo operacional, mesmo que CPU/banco coubessem no Free.
 

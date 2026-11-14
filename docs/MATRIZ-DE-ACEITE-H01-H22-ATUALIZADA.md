@@ -1,4 +1,4 @@
-# Matriz de aceite Aurora 2.4 — H01 a H28
+# Matriz de aceite Aurora 2.4 — H01 a H29
 
 Revisão 2026-11-14. Legenda: **OFFLINE VALIDADO** = código e mocks/SQLite + CI; **IMPLEMENTADO, EXTERNO PENDENTE** = fluxos codificados sem contas ou aparelhos reais; **BLOQUEADO** = depende de autorização/provedor; **PARCIAL** = limite funcional explicitamente documentado. CI (evidência): https://github.com/kelwin-feitosa/Aurora/actions/runs/43583029640, com 152 testes aprovados, 0 falhas. Não é prova de homologação externa.
 
@@ -32,6 +32,7 @@ Revisão 2026-11-14. Legenda: **OFFLINE VALIDADO** = código e mocks/SQLite + CI
 | H26 | Lockfile, auditoria e CI | OFFLINE VALIDADO | npm ci, npm audit, TypeScript, smoke e 152 testes pass no GitHub |
 | H27 | ZIP privado e verificável | OFFLINE VALIDADO | git archive, unzip -t, SHA256SUMS e artifact no GitHub; retenção 7 dias |
 | H28 | Segurança adversarial | PARCIAL | 40 casos artificiais, STRIDE e diffs; sem pentest independente |
+| H29 | Confirmação humana obrigatória | OFFLINE VALIDADO | From sem autenticação nunca pode liberar gravação automática; modo legado trusted-senders é ignorado, confirmado por testes de integração no commit cd05e0ad |
 
 ## Critérios de aceite globais
 - **GO:** revisar internamente a candidata offline, reproduzir CI, baixar ZIP privado.

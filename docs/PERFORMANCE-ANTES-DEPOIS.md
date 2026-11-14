@@ -18,6 +18,10 @@ Fonte oficial: https://developers.google.com/workspace/gmail/api/reference/quota
 Referência https://learn.microsoft.com/en-us/graph/delta-query-messages . Resposta delta pode conter subject, from e receivedDateTime via $select; antes havia um fetch adicional de cabeçalho por mensagem e depois um fetch completo quando lida. Agora a linha de fetch de metadados é eliminada **quando os campos estão presentes no delta da rodada corrente**. Se um token antigo não trouxer campos, fallback preserva compatibilidade. Não é estimativa de dinheiro: o Graph tem regras próprias de throttling, sem conversão comprovada das chamadas em custo.
 
 ### SQL e Free tier
+
+**Após a correção de segurança cd05e0ad**, o benchmark SQL sintético atualizado executou 23 instruções e 4 chamadas de provedor na primeira rodada, 21 instruções na segunda (7 chamadas acumuladas) no cenário de 2 conexões. **Não se trata de melhora isolada do mecanismo SQL:** as operações remotas antes autoaprovadas deixaram de ocorrer, e esse fluxo agora depende de revisão humana. Comparar 23 e 39 diretamente como otimização de banco seria incorreto.
+
+Valores **anteriores** à remoção da autoaprovação (cenário de integração com calendário):
 GitHub Actions em 2026-11-14 mediu via adaptador SQLiteD1 sintético:
 - 1 conexão, primeira rodada: **39 instruções SQL**, 7 chamadas de provedor (mock).
 - 2 conexões, primeira rodada: **39 instruções SQL**, 7 chamadas de provedor (mock).

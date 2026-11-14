@@ -14,6 +14,7 @@ Foram inspecionados no repositório código das integrações Gmail/Outlook, pip
 |---|---|---|
 | Privacidade / recuperação de dados | Reavaliação manual agora permite uma leitura do corpo de descartes elegíveis; não contorna bloqueio explícito nem opt-out de assunto sensível | src/app/pipeline.ts; src/web/handler.ts; migrations/0017; tests/monitoring.test.mjs |
 | Isolamento por sessão | API de push filtra status e revogação pelo hash da sessão corrente | src/app/push.ts; tests/aurora22.test.mjs |
+| Segurança de aprovação | Modo antigo trusted-senders não autoaprova mais por From não autenticado; toda criação exige revisão humana, incluindo fluxos de teste end-to-end | src/domain/trust.ts; tests/integration.test.mjs; tests/audit-2.0.test.mjs; commit cd05e0ad |
 | Desempenho Graph | Reusa metadados de listChanges/delta quando disponíveis; fallback preserva cursores antigos | src/providers/outlook.ts; src/types.ts; tests/monitoring.test.mjs |
 | Reprodutibilidade | 48 cenários sintéticos x5, métricas de falso negativo, chamadas modeladas, unidades Gmail, CSV e JSON | bench/monitoring-2.4.mjs |
 | Defesa adversarial | 40 casos de fronteiras de remetente, opt-out, promoções e URL/SSRF | tests/adversarial24.test.mjs |
@@ -30,13 +31,13 @@ Os benchmarks mensuram tempo de função Node e **contagens sintéticas** de SQL
 ## Principais decisões
 
 - Conservar arquitetura atual (Worker/D1 com adaptadores) e evitar microserviços, LLM remoto e dependências de parser sem evidência de ganho.
-- Manter revisão humana como política operacional recomendada. F01 impede declarar seguro o opt-in automático baseado apenas no campo From.
+- Revisão humana passou de recomendação operacional a **requisito de execução**: F01 mitigado com desligamento fail-closed do antigo opt-in automático baseado apenas no campo From (cd05e0ad). Esse recurso legado foi intencionalmente desabilitado, sem substituir por nova técnica de autenticação.
 - Não prometer gratuidade anual: as regras do Gmail mudaram em maio de 2026; D1 começou a aplicar enforcement de limites em setembro de 2026.
 - Preservar banco vivo: única migração aditiva de coluna com valor padrão zero. Nunca rodar atualização em banco real sem backup e simulação de restauração.
 - Distribuição: artefato privado temporário apenas, não deploy, release pública ou merge.
 
 ## Estado final e pendências
 
-**Candidata de engenharia para laboratório offline, não homologada para produção.** Pendências concretas: autenticação de remetente para autoaprovação (ou remoção completa do modo), autorização OAuth institucional, CPU/D1 e custos reais por instalação, PWA/dispositivos, restauração real e corpus anotado com consentimento. A matriz H01–H22 e o checklist detalham condições de GO/NO-GO.
+**Candidata de engenharia para laboratório offline, não homologada para produção.** Pendências concretas: autorização OAuth institucional, CPU/D1 e custos reais por instalação, PWA/dispositivos, restauração real e corpus anotado com consentimento. A autoaprovação por remetente foi desativada, e uma nova implementação autenticada seria produto futuro, não requisito para a candidata em modo de revisão humana. A matriz H01–H22 e o checklist detalham condições de GO/NO-GO.
 
 Para achados, consultar AUDIT/FINDINGS.md; para cálculo de custos, docs/CUSTO-FREE-12-MESES.md; para revisão do PR, docs/PR-REVIEW.md.

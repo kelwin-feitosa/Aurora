@@ -6,7 +6,7 @@
 
 | ID | Prioridade | Evidência verificável | Estado / decisão |
 |---|---|---|---|
-| F01 | P1 / ABERTO | src/domain/trust.ts: allowedAutomaticSender aceita apenas o campo From e uma allowlist configurada. Cabeçalho não constitui SPF/DKIM/DMARC confiável. | **NO-GO se AUTO_APPROVE_MODE=trusted-senders**. Manter configuração review; não afirmar que sender foi autenticado. Uma solução real precisa prova do provedor ou confirmação humana para todo evento. |
+| F01 | P1 / CORRIGIDO (risco mitigado) | O modo legado trusted-senders permitia aprovar evento com base apenas no campo From, não autenticado por SPF/DKIM/DMARC. | No commit cd05e0ad, allowedAutomaticSender retorna false para **todos** os remetentes: sempre exige revisão humana autenticada para escrita no calendário, inclusive quando AUTO_APPROVE_MODE=trusted-senders estiver configurado. Opcionalidade anterior foi desativada de propósito; autenticação de remetentes para futura autoaprovação continua NÃO IMPLEMENTADA. |
 | F02 | P2 / CORRIGIDO | O botão rescan não superava o mesmo filtro que originou o descarte. | Migração 0017, flag durável de leitura única, seleção apenas de descartes não protegidos; teste de reavaliação + opt-out. Commit 96aea465. |
 | F03 | P2 / CORRIGIDO | unsubscribePush/listPush ignoravam session_hash fornecido. | WHERE session_hash na listagem/revogação de autorização do aparelho; revogação total de sessão continua possível pela API. Commit 8011f3e8. |
 | F04 | P2 / CORRIGIDO | Outlook fazia GET de metadados mesmo com cabeçalhos já presentes na página delta. | Reaproveita só na memória da rodada, pede from no $select e recua ao endpoint antigo se delta não trouxer campos. Commit f5086421. |
@@ -26,7 +26,7 @@
 - GitHub Actions privado, runs associados a cada commit, é a evidência de build, testes e ZIP; não confundir com prova de implantação.
 
 ## Regras de liberação
-1. **NO-GO institucional** enquanto F01 ativo na configuração, F05/F06/F09/F10 sem homologação.
+1. **NO-GO institucional** enquanto F05/F06/F09/F10 sem homologação; F01 foi mitigado por desativação fail-closed da autoconfirmação (cd05e0ad).
 2. **GO para ensaio offline** com dados simulados e modo de revisão humana.
 3. Nenhum achado resolvido por mera promessa, popularidade de biblioteca ou mudança cosmética.
 4. Não realizar merge, deploy, divulgação pública nem alterações de cobrança sem autorização explícita.

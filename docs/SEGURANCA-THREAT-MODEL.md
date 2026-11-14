@@ -10,7 +10,7 @@ Eventos de e-mail nunca constituem instrução privilegiada nem autenticação d
 
 | STRIDE | Cenário adversarial | Controle observado | Lacuna / prioridade |
 |---|---|---|---|
-| S Spoofing | Um atacante falsifica From de professor em mensagem com data explícita | Revisão humana padrão, allowlist exata | **P1:** opt-in trusted-senders confia em From não verificado. NO-GO enquanto habilitado; exigir confirmação manual ou verificação confiável de autenticidade |
+| S Spoofing | Um atacante falsifica From de professor em mensagem com data explícita | No commit cd05e0ad, nenhuma mensagem é autoaprovada: confirmação humana autenticada é obrigatória, inclusive quando AUTO_APPROVE_MODE=trusted-senders consta da configuração legada | Risco de autenticação por From **mitigado por fail-closed**; autenticação robusta para eventual automação futura não existe. Homologação remota pendente |
 | S Spoofing | OAuth callback reaproveitado em sessão diferente | state com consumo único, PKCE, vinculação à sessão e tempo limite | Homologar OAuth institucional e consentimento de tenant |
 | T Tampering | Injeção em mensagens ICS, datas conflitantes, URLs controladas | parser limitado, classificação para review, APIs de provedores com destinos permitidos | Não cobrir recorrências/zonas arbitrárias sem corpus |
 | T Tampering | Manipular resultado de gravação remota | outbox, IDs estáveis, verificação de propriedade, status unknown e bloqueio conservador | Testar reconciliação real após timeout |
@@ -24,7 +24,7 @@ Eventos de e-mail nunca constituem instrução privilegiada nem autenticação d
 
 ## Segurança operacional mínima
 
-1. Usar AUTO_APPROVE_MODE=review; tratar a opção trusted-senders como **risco alto não resolvido**, não como assinatura verificada.
+1. Usar AUTO_APPROVE_MODE=review. A opção legada trusted-senders é aceita por compatibilidade mas **não autoriza** criação automática na 2.4; nenhum cabeçalho From serve como assinatura verificada.
 2. Armazenar APP_SECRET e clientes OAuth somente nos secrets autorizados do ambiente, nunca no GitHub, exportação ou ZIP.
 3. Usar OAuth por instalação com escopo mínimo, conferir autorização da instituição e informar claramente o que é lido e persistido.
 4. Aplicar migrações D1 após backup verificado e ensaio de restauração isolada; não retirar transações de idempotência.
@@ -34,4 +34,4 @@ Eventos de e-mail nunca constituem instrução privilegiada nem autenticação d
 
 ## Não-go e risco aceito
 
-A configuração de autoaprovação por From não verificado é um bloqueador para homologação pública, embora o modo padrão seja revisão humana. Pentest, DPIA/LGPD, verificação institucional e dispositivos reais permanecem externos. Não existe alegação de segurança absoluta.
+O risco de autoaprovação por From foi contido desativando deliberadamente todas as escritas automáticas: toda criação exige confirmação humana autenticada. O recurso de autoaprovação legada não é mais funcional. Pentest, DPIA/LGPD, verificação institucional e dispositivos reais permanecem externos. Não existe alegação de segurança absoluta.

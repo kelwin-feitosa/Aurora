@@ -8,23 +8,24 @@ Data 2026-11-14. PR #1, branch feature/aurora-2.3. Este documento define portas,
 - [x] Correção rescan preservando bloqueio explícito e opt-out sensível (migration 0017), testes de falha original e regressão.
 - [x] Push list/unsubscribe vinculados à sessão e regressão inter-sessões.
 - [x] Outlook reusa cabeçalho do delta com fallback legado.
+- [x] Desativada autoaprovação por From (commit cd05e0ad); novo fluxo de integração comprova revisão humana autenticada antes de criar evento.
 - [x] 40 casos adversariais adicionais + 48 cenários de benchmark rotulado sintético x5.
 - [x] npm ci, npm audit, build, typecheck, testes, smoke, benchmarks, secret scan por GitHub Actions.
-- [x] No CI de 2026-11-14, **152 testes aprovados e 0 falhas** no commit 327d3f89339c2698ef7d6338405bffd8cf919f26 e novamente verificar CI da cabeça atual.
+- [x] No CI de 2026-11-14, **152 testes aprovados e 0 falhas** no commit cd05e0ad79faed94174bca7f82d22128e8821693 e novamente verificar CI da cabeça atual.
 - [x] Artifact privado criado via git archive, testado unzip -t, SHA256SUMS.txt e presença de package-lock e migration 0017; retido temporariamente (7 dias), sem publicação pública.
 - [x] package.json e lockfile possuem 2.4.0-rc.1; documentação de limites e custos.
 - [x] Nenhum merge, deploy, release pública, inclusão de segredo nem alteração de cobrança realizada pela missão.
 
 ## Pendências que NÃO podem ser declaradas concluídas
 
-- [ ] Eliminar autoconfirmação baseada apenas no campo From ou verificar autenticidade do remetente por evidência confiável de provedor. Até lá, **AUTO_APPROVE_MODE=review obrigatório; não operar modo trusted-senders em produção**.
+- [x] Eliminar autoconfirmação baseada apenas no campo From: a 2.4 **ignora** o modo legado trusted-senders e exige revisão humana autenticada para todo evento. Uma nova autenticação real do remetente seria uma capacidade futura separada.
 - [ ] Testar OAuth consentido Gmail e Microsoft real, inclusive políticas institucionais.
 - [ ] Migrar D1 real após backup e restauração isolada e verificar integridade.
 - [ ] Medir CPU Worker, rows D1, cota/subrequests, quotas e latência p95/p99.
 - [ ] Homologar Android, iOS, desktop, Web Push, instalação e acessibilidade com pessoas.
 - [ ] Construir/validar corpus real consentido PT-BR e taxa de falso negativo, não só benchmark sintético.
 - [ ] Verificar revogação completa OAuth e todos os estados de recuperação remota de calendário.
-- [ ] Resolver/retestar os pontos F01, F05, F06, F07, F08, F09 e F10 conforme escopo de release pública.
+- [ ] Resolver/retestar os pontos F05, F06, F07, F08, F09 e F10 conforme escopo de release pública; F01 mitigado por revisão obrigatória (sem autoconfirmação).
 - [ ] Decisão humana explícita de merge e, separadamente, deploy/publicação, caso desejados.
 
 ## Status da release candidate
