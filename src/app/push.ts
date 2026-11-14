@@ -40,13 +40,15 @@ export async function subscribePush(env:Env,session:string,endpoint:string,keys:
   .bind(id,session,enc,now,now,now).run();
  return id;
 }
-export async function unsubscribePush(env:Env,_session:string,id:string,now=Date.now()):Promise<boolean>{
+export async function unsubscribePush(env:Env,session:string,id:string,now=Date.now()):Promise<boolean>{
  if(!/^push_[A-Za-z0-9_-]{43}$/.test(id))throw new Error('PUSH_ID_INVALID');
- const r=await env.DB.prepare("UPDATE push_subscriptions SET state='revoked',updated_at=? WHERE id=? AND state='active'").bind(now,id).run();
+ // Device-level consent: a different session cannot silently disable this device.
+ // The authenticated session-management endpoint still supports full session revocation.
+ const r=await env.DB.prepare("UPDATE push_subscriptions SET state='revoked',updated_at=? WHERE id=? AND session_hash=? AND state='active'").bind(now,id,session).run();
  return Number(r.meta?.changes??0)===1;
 }
-export async function listPush(env:Env,_session:string):Promise<Array<{id:string;created_at:number;last_status:string|null}>>{
- const data=(await env.DB.prepare("SELECT id,consent_at,last_status FROM push_subscriptions WHERE state='active' ORDER BY consent_at DESC LIMIT 10").all<{id:string;consent_at:number;last_status:string|null}>()).results;
+export async function listPush(env:Env,session:string):Promise<Array<{id:string;created_at:number;last_status:string|null}>>{
+ const data=(await env.DB.prepare("SELECT id,consent_at,last_status FROM push_subscriptions WHERE state='active' AND session_hash=? ORDER BY consent_at DESC LIMIT 10").bind(session).all<{id:string;consent_at:number;last_status:string|null}>()).results;
  return data.map(x=>({id:x.id,created_at:x.consent_at,last_status:x.last_status}));
 }
 export function isQuiet(now:number,zone:string,start:string,end:string):boolean{

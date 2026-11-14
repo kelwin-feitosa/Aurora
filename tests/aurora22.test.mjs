@@ -40,10 +40,14 @@ test('VAPID é ES256 válido, público verificável, sem dados de estudante',asy
  assert.equal(await crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'},key,Buffer.from(sig,'base64url'),new TextEncoder().encode(`${h}.${p}`)),true);
  close();
 });
-test('Inscrição é cifrada e proprietário pode revogar dispositivo de sessão antiga',async()=>{
- const {env,db,close}=setup();prepareVapid(env);const a=await session(env);const id=await subscribePush(env,a,endpoint,keys);
+test('Inscrição é cifrada e outra sessão não consegue listar ou revogar autorização Push do aparelho',async()=>{
+ const {env,db,close}=setup();prepareVapid(env);const a=await session(env),b=await session(env);
+ const id=await subscribePush(env,a,endpoint,keys);
  assert.match(id,/^push_/);const row=await db.prepare('SELECT endpoint_ciphertext FROM push_subscriptions').first();assert.equal(row.endpoint_ciphertext.includes(endpoint),false);
- assert.equal((await listPush(env,a)).length,1);assert.equal(await unsubscribePush(env,'new-owner-session',id),true);
+ assert.equal((await listPush(env,a)).length,1);assert.equal((await listPush(env,b)).length,0);
+ assert.equal(await unsubscribePush(env,b,id),false);
+ assert.equal((await db.prepare("SELECT state FROM push_subscriptions WHERE id=?").bind(id).first()).state,'active');
+ assert.equal(await unsubscribePush(env,a,id),true);
  assert.equal(await unsubscribePush(env,a,id),false);assert.equal((await listPush(env,a)).length,0);close();
 });
 test('Inscrição recusa chaves inválidas e estado não configurado',async()=>{
