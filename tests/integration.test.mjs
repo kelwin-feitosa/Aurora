@@ -46,20 +46,38 @@ function microsoftMock(){
  }};
 }
 
+
+/** A provider's From header is NOT an authentication attestation. All fixture
+ * calendar writes must explicitly simulate the real authenticated review API. */
+async function synchronizeThenConfirm(env,http,now){
+ await runCycle(env,http,now);
+ const rows=(await env.DB.prepare("SELECT id,kind,start_at,due_date FROM academic_items WHERE state='review'").all()).results;
+ assert.equal(rows.length,1,'Expected one reviewable message before explicit consent');
+ const item=rows[0];
+ const {issueSession}=await import('../src/infra/security.ts');
+ const token=await issueSession(env);
+ const response=await handle(new Request(env.PUBLIC_ORIGIN+'/api/items/'+item.id+'/review',{
+  method:'POST',headers:{Cookie:'aurora_session='+token,Origin:env.PUBLIC_ORIGIN,'Content-Type':'application/json'},
+  body:JSON.stringify(item.kind==='task'?{kind:'task',due_date:item.due_date}:{kind:'event',start_at:item.start_at})
+ }),env);
+ assert.equal(response.status,200,await response.text());
+ await runCycle(env,http,now+60000);
+}
+
 test('Gmail: sincronização → classificação → outbox → calendário, sem duplicatas',async()=>{
- const {db,env,close}=setup();await insertConnection(env,'gmail','g1');const http=googleMock();const now=Date.now();await runCycle(env,http,now);
+ const {db,env,close}=setup();await insertConnection(env,'gmail','g1');const http=googleMock();const now=Date.now();await synchronizeThenConfirm(env,http,now);
  const items=(await db.prepare('SELECT * FROM academic_items').all()).results;assert.equal(items.length,1);assert.equal(items[0].state,'synced');
  assert.equal((await db.prepare("SELECT state FROM outbox").first()).state,'committed');assert.equal(http.posts,1);
  await runCycle(env,http,now+120000);assert.equal(http.posts,1);close();
 });
 test('Graph: sincronização e criação com transactionId, sem POST duplicado',async()=>{
- const {db,env,close}=setup();await insertConnection(env,'outlook','o1');const http=microsoftMock(),now=Date.now();await runCycle(env,http,now);
+ const {db,env,close}=setup();await insertConnection(env,'outlook','o1');const http=microsoftMock(),now=Date.now();await synchronizeThenConfirm(env,http,now);
  assert.equal(http.posts,1);assert.equal((await db.prepare('SELECT state FROM academic_items').first()).state,'synced');
  await runCycle(env,http,now+120000);assert.equal(http.posts,1);close();
 });
 test('perda de resposta após POST: estado UNKNOWN, reconciliação GET, sem segundo POST',async()=>{
  const {db,env,close}=setup();await insertConnection(env,'gmail','g1');const http=googleMock({lostResponse:true}),now=Date.now();
- await runCycle(env,http,now);assert.equal(http.posts,1);
+ await synchronizeThenConfirm(env,http,now);assert.equal(http.posts,1);
  assert.equal((await db.prepare('SELECT state FROM outbox').first()).state,'unknown');
  await runCycle(env,http,now+180000);assert.equal(http.posts,1);
  assert.equal((await db.prepare('SELECT state FROM outbox').first()).state,'committed');close();
@@ -106,7 +124,7 @@ test('Graph resultado remoto desconhecido bloqueia novo POST automático quando 
   if(String(url).endsWith('/events')&&opts.method==='POST'){calls++;throw Error('NETWORK_FAILED_AFTER_REMOTE_COMMIT_UNKNOWN');}
   return fake.fetch(url,opts);
  }};
- const now=Date.now();await runCycle(env,mock,now);assert.equal(calls,1);assert.equal((await db.prepare('SELECT state FROM outbox').first()).state,'unknown');
+ const now=Date.now();await synchronizeThenConfirm(env,mock,now);assert.equal(calls,1);assert.equal((await db.prepare('SELECT state FROM outbox').first()).state,'unknown');
  await runCycle(env,mock,now+180000);assert.equal(calls,1);assert.equal((await db.prepare('SELECT state FROM outbox').first()).state,'blocked');close();
 });
 test('alteração de preferência só aceita valores permitidos; CSRF continua obrigatório',async()=>{
@@ -143,7 +161,7 @@ test('vinculação OAuth não permite completar state originado por outra sessã
 test('Gmail: correção e cancelamento remotos manuais preservam propriedade do evento',async()=>{
  const {db,env,close}=setup();await insertConnection(env,'gmail','g1');const http=googleMock(),now=Date.now();
  const {queueCalendarChange,deliverCalendarChange}=await import('../src/app/pipeline.ts');
- await runCycle(env,http,now);assert.equal(http.posts,1);
+ await synchronizeThenConfirm(env,http,now);assert.equal(http.posts,1);
  const item=(await db.prepare('SELECT * FROM academic_items').first());
  const id=await queueCalendarChange(env,item.id,{action:'update',start_at:'2026-11-20T15:00:00'});
  let change=await db.prepare('SELECT * FROM calendar_changes WHERE id=?').bind(id).first();
@@ -161,7 +179,7 @@ test('Gmail: correção e cancelamento remotos manuais preservam propriedade do 
 test('Outlook: correção com Graph PATCH só alcança transactionId esperado',async()=>{
  const {db,env,close}=setup();await insertConnection(env,'outlook','o1');const http=microsoftMock(),now=Date.now();
  const {queueCalendarChange,deliverCalendarChange}=await import('../src/app/pipeline.ts');
- await runCycle(env,http,now);const item=await db.prepare('SELECT * FROM academic_items').first();
+ await synchronizeThenConfirm(env,http,now);const item=await db.prepare('SELECT * FROM academic_items').first();
  const id=await queueCalendarChange(env,item.id,{action:'update',start_at:'2026-11-20T16:00:00'});
  const change=await db.prepare('SELECT * FROM calendar_changes WHERE id=?').bind(id).first();
  await deliverCalendarChange(env,change,http,now+80000);
@@ -172,7 +190,7 @@ test('Outlook: correção com Graph PATCH só alcança transactionId esperado',a
 test('propriedade remota inválida bloqueia operação destrutiva',async()=>{
  const {db,env,close}=setup();await insertConnection(env,'gmail','g1');const http=googleMock(),now=Date.now();
  const {queueCalendarChange,deliverCalendarChange}=await import('../src/app/pipeline.ts');
- await runCycle(env,http,now);const item=await db.prepare('SELECT * FROM academic_items').first();
+ await synchronizeThenConfirm(env,http,now);const item=await db.prepare('SELECT * FROM academic_items').first();
  const id=await queueCalendarChange(env,item.id,{action:'cancel'});
  const e=[...http.events.values()][0];e.extendedProperties.private.source_id='tampered';
  const change=await db.prepare('SELECT * FROM calendar_changes WHERE id=?').bind(id).first();await deliverCalendarChange(env,change,http,now+70000);
@@ -190,7 +208,7 @@ test('budget de chamadas registra tentativas e impede ultrapassar limite por exe
 
 test('PATCH efetuado remotamente com resposta perdida é reconciliado sem novo PATCH',async()=>{
  const {db,env,close}=setup();await insertConnection(env,'gmail','g1');const fake=googleMock();const now=Date.now();
- const {queueCalendarChange,deliverCalendarChange}=await import('../src/app/pipeline.ts');await runCycle(env,fake,now);
+ const {queueCalendarChange,deliverCalendarChange}=await import('../src/app/pipeline.ts');await synchronizeThenConfirm(env,fake,now);
  const item=await db.prepare('SELECT * FROM academic_items').first(),id=await queueCalendarChange(env,item.id,{action:'update',start_at:'2026-11-21T17:00:00'});
  let patches=0;const network={fetch:async(u,o={})=>{const r=await fake.fetch(u,o);if(o.method==='PATCH'&&patches++===0)throw new Error('POST_RESPONSE_LOST');return r;}};
  let change=await db.prepare('SELECT * FROM calendar_changes WHERE id=?').bind(id).first();await deliverCalendarChange(env,change,network,now+50000);

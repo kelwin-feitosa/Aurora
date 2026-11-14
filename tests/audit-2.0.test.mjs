@@ -24,9 +24,9 @@ test('2.0: sem opt-in, remetente conhecido também exige revisão',()=>{
   assert.match(decision.rationale,/Revisão obrigatória/);
  }finally{close();}
 });
-test('2.0: automação exige remetente exato, não domínio aproximado ou header ambíguo',()=>{
+test('2.4: autoconfirmação por From permanece desativada mesmo com allowlist',()=>{
  const {env,close}=setup();try{
-  assert.equal(allowedAutomaticSender(env,sample),true);
+  assert.equal(allowedAutomaticSender(env,sample),false);
   for(const sender of ['professor@school.edu.attacker.test','xprofessor@school.edu','professor@school.edu, bad@evil.test','Professor <professor@school.edu>\r\nX: evil',''])
    assert.equal(allowedAutomaticSender(env,{...sample,sender}),false,sender);
  }finally{close();}

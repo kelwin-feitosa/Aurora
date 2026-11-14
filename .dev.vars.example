@@ -8,10 +8,10 @@ MICROSOFT_CLIENT_SECRET=
 # Opcional: restringir ao tenant autorizado, ou 'organizations'
 MICROSOFT_TENANT=organizations
 
-# Padrão seguro: novas mensagens precisam ser confirmadas antes de criar eventos.
+# Único comportamento de escrita seguro da 2.4: revisão humana obrigatória.
 AUTO_APPROVE_MODE=review
-# Somente com consentimento explícito: trusted-senders + lista EXATA de e-mails.
-# Atenção: o campo From não é prova de autenticidade (SPF/DKIM/DMARC não verificados).
+# Opção legada trusted-senders é ignorada na 2.4 (From não é autenticado).
+# A lista abaixo é mantida apenas para compatibilidade, sem autoconfirmação.
 TRUSTED_SENDER_ADDRESSES=
 
 # Notificações próprias são opcionais e ficam desativadas até a configuração explícita.

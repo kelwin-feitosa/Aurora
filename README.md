@@ -13,7 +13,7 @@ O Aurora oferece **Acadêmico** (padrão), **Acadêmico ampliado** e **Pessoal**
 
 ## Novidades 2.0 — política de confiança e orçamento
 
-- **Revisão humana por padrão:** mensagens de qualquer remetente não geram eventos automaticamente, mesmo que tenham data/hora explícitas. A opção `AUTO_APPROVE_MODE=trusted-senders` exige a lista exata `TRUSTED_SENDER_ADDRESSES=professor@exemplo.edu.br,...`; **From não prova autenticação de origem**. Use com cautela e prefira revisão manual.
+- **Revisão humana obrigatória (2.4):** nenhum e-mail cria evento sem confirmação autenticada, inclusive se o endereço constar da allowlist. O modo legado AUTO_APPROVE_MODE=trusted-senders é deliberadamente ignorado, porque o campo From não é prova de autenticação (SPF/DKIM/DMARC). A lista de fontes permitidas continua servindo à triagem, não à aprovação automática.
 - Google Calendar só reconcilia eventos com ID e `extendedProperties.private` próprios. Graph bloqueia busca de evento incompleta/paginação cruzada para não duplicar eventos.
 - Reservas atômicas de mutação contam tentativas inclusive quando a resposta é perdida. Mensagens truncadas vão obrigatoriamente para revisão, e contas indisponíveis recebem backoff para não bloquear outras.
 - Manutenção de banco executa em tick próprio, não misturada com sincronização; orçamento sintético inclui comandos em lotes. Há avaliação artificial com 68 mensagens e 81+ testes locais.

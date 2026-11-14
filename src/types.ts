@@ -26,7 +26,8 @@ export interface Env {
   PUSH_ENABLED?: string;
   /** Defaults to human review. Explicit opt-in and exact sender address allowlist
    * are needed to enable calendar writes without a manual confirmation. */
-  AUTO_APPROVE_MODE?: 'review' | 'trusted-senders';
+  /** Legacy trusted-senders is accepted only for migration; no automatic writes in 2.4. */
+ AUTO_APPROVE_MODE?: 'review' | 'trusted-senders';
   TRUSTED_SENDER_ADDRESSES?: string;
 }
 export interface ExecutionContext {waitUntil(promise:Promise<unknown>):void;}
