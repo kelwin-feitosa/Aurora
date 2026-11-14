@@ -35,8 +35,38 @@ jobs:
         run: npm run bench:scientific
       - name: Offline artifact and secret scan
         run: npm run security:check
+      - name: Labelled 2.4 metadata/classification benchmark (offline)
+        run: npm run bench:monitoring24
       - name: Check for accidentally committed secrets
         run: |
           test ! -f .dev.vars
           test ! -f .env
           test ! -f aurora-local.db
+      - name: Create private candidate ZIP and verify integrity (no deploy)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/aurora-2.3'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          git archive --format=zip --output=dist/Aurora-2.4.0-rc.1-source.zip HEAD
+          unzip -t dist/Aurora-2.4.0-rc.1-source.zip > dist/ZIP-VERIFICATION.txt
+          test "$(unzip -Z1 dist/Aurora-2.4.0-rc.1-source.zip | grep -c '^migrations/0017_monitoring_rescan_consent.sql
+)" -eq 1
+          test "$(unzip -Z1 dist/Aurora-2.4.0-rc.1-source.zip | grep -c '^package-lock.json
+)" -eq 1
+          sha256sum dist/Aurora-2.4.0-rc.1-source.zip > dist/SHA256SUMS.txt
+          cat dist/SHA256SUMS.txt
+      - name: Retain private candidate, integrity record and reproducible benchmarks
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/aurora-2.3'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aurora-2.4.0-rc.1-private
+          path: |
+            dist/Aurora-2.4.0-rc.1-source.zip
+            dist/SHA256SUMS.txt
+            dist/ZIP-VERIFICATION.txt
+            artifacts/benchmark-monitoring-2.4.csv
+            artifacts/benchmark-monitoring-2.4.json
+          if-no-files-found: error
+          retention-days: 7
+
