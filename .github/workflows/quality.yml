@@ -50,10 +50,8 @@ jobs:
           mkdir -p dist
           git archive --format=zip --output=dist/Aurora-2.4.0-rc.1-source.zip HEAD
           unzip -t dist/Aurora-2.4.0-rc.1-source.zip > dist/ZIP-VERIFICATION.txt
-          test "$(unzip -Z1 dist/Aurora-2.4.0-rc.1-source.zip | grep -c '^migrations/0017_monitoring_rescan_consent.sql
-)" -eq 1
-          test "$(unzip -Z1 dist/Aurora-2.4.0-rc.1-source.zip | grep -c '^package-lock.json
-)" -eq 1
+          test "$(unzip -Z1 dist/Aurora-2.4.0-rc.1-source.zip | grep -c '^migrations/0017_monitoring_rescan_consent.sql$')" -eq 1
+          test "$(unzip -Z1 dist/Aurora-2.4.0-rc.1-source.zip | grep -c '^package-lock.json$')" -eq 1
           sha256sum dist/Aurora-2.4.0-rc.1-source.zip > dist/SHA256SUMS.txt
           cat dist/SHA256SUMS.txt
       - name: Retain private candidate, integrity record and reproducible benchmarks
