@@ -15,3 +15,10 @@
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
 .item-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(155px,1fr);gap:12px;margin:0 0 12px}.item-filters label{display:block;font-size:12px;font-weight:750;margin-bottom:5px}.item-filters input,.item-filters select{width:100%;background:white;border:1px solid #cbd5e3;border-radius:10px;padding:10px 12px;min-height:44px}.item-filters input:focus-visible,.item-filters select:focus-visible{outline-color:#a16b1d}@media(max-width:560px){.item-filters{grid-template-columns:1fr}}
+
+/* Aurora 2.3: account-specific monitoring rules; keep controls accessible on phones. */
+.monitoring-account{border-top:1px solid var(--border, #bec5d1);margin-top:1rem;padding-top:1rem}
+.monitoring-form{display:grid;gap:.55rem;max-width:46rem}
+.monitoring-form textarea,.monitoring-form select{width:100%;min-height:2.7rem;padding:.55rem;font:inherit}
+.monitor-checkbox{display:flex;gap:.65rem;align-items:flex-start;margin:.7rem 0}
+.monitor-checkbox input{width:1.2rem;height:1.2rem;flex:0 0 auto}

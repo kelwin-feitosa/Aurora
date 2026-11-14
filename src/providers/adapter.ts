@@ -1,8 +1,11 @@
 import type {ProviderId,ProviderHTTP,RemoteMessage,SyncPage,Connection} from '../types.ts';
+import type {MessageEnvelope} from '../domain/monitoring.ts';
 export interface MailCalendarAdapter {
  readonly id:ProviderId;
  whoAmI(token:string):Promise<string>;
  listChanges(token:string,conn:Connection,limit:number):Promise<SyncPage>;
+ /** Fetch headers only before potentially reading private message bodies. */
+ fetchEnvelope(token:string,id:string):Promise<MessageEnvelope>;
  fetchMessage(token:string,id:string):Promise<RemoteMessage>;
  ensureCalendar(token:string,conn:Connection):Promise<string>;
  findOwnedEvent(token:string,calendarId:string,actionId:string,startAt:string):Promise<{id:string}|null>;

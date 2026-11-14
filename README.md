@@ -1,6 +1,12 @@
+> **Estado:** Aurora 2.3 RC técnico, privado e sem homologação externa. Não dependa exclusivamente do Aurora para prazos essenciais. Ainda falta validar Cloudflare, Gmail/Outlook institucionais e dispositivos reais. O repositório não inclui credenciais nem dados de estudantes.
+
+### Novidade 2.3 — modos por conta
+
+O Aurora oferece **Acadêmico** (padrão), **Acadêmico ampliado** e **Pessoal** (opt-in). Em Conexões, configure remetentes e domínios permitidos/bloqueados por conta. A triagem por metadados reduz a leitura de corpo em mensagens claramente fora do escopo, mas pode descartar assuntos genéricos e aumenta chamadas para mensagens relevantes; use a reavaliação manual quando necessário. Assuntos sensíveis são desativados por padrão no modo pessoal. Veja [monitoramento e suas limitações](docs/MONITORAMENTO-2.3.md) e [benchmark](docs/BENCHMARK-MONITORAMENTO-2.3.md).
+
 > **Status da versão 2.2:** 2.0 preservada. Novas migrações 0013–0015, agendamento adaptativo, diagnóstico de fila, onboarding verificável e Web Push genérico opt-in. **NÃO HOMOLOGADO para contas ou hospedagem reais.** Ver `docs/AURORA-2.2-RELATORIO.md`, `docs/AURORA-2.2-HOMOLOGACAO.md` e `docs/AURORA-2.2-TESTES.md`.
 
-# Aurora 2.2.0-rc.1 — Instalação pessoal e notificações opcionais (pré-homologação)
+# Aurora 2.3.0-rc.1 — Instalação pessoal e notificações opcionais (pré-homologação)
 
 > **Estado:** código executável com testes locais. **NÃO homologado para contas institucionais ou Cloudflare Free.** Não usar como única fonte de avisos de prova/estágio até validar OAuth e sincronização real.
 

@@ -20,6 +20,12 @@ export class OutlookAdapter implements MailCalendarAdapter{
   if(!nextPage&&!nextCursor)throw new Error('GRAPH_MISSING_DELTA_CHECKPOINT');
   return {messages:(r.value??[]).filter(x=>!x['@removed']).map(x=>({id:x.id,revision:'0'})),nextPage,nextCursor,anchor:null};
  }
+ async fetchEnvelope(token:string,id:string):Promise<import('../domain/monitoring.ts').MessageEnvelope>{
+  if(id.length>400||!id||/[\r\n]/.test(id))throw new Error('GRAPH_INVALID_ID');
+  const url=`${ROOT}/me/messages/${encodeURIComponent(id)}?$select=id,subject,from,receivedDateTime`;
+  const r=await apiJson<GraphMsg>(this.http,url,token,{headers:H});
+  return {id,subject:(r.subject??'').slice(0,400),sender:(r.from?.emailAddress?.address??'').slice(0,320),receivedAt:r.receivedDateTime??new Date(0).toISOString()};
+ }
  async fetchMessage(token:string,id:string):Promise<RemoteMessage>{
   if(id.length>400||!id||/[\r\n]/.test(id))throw new Error('GRAPH_INVALID_ID');
   const url=`${ROOT}/me/messages/${encodeURIComponent(id)}?$select=id,subject,body,bodyPreview,hasAttachments,receivedDateTime,internetMessageId,from`;

@@ -4,6 +4,7 @@ import {sha256,shaHex} from '../infra/crypto.ts';
 import {beginOauth,finishOauth,oauthEnabled} from '../providers/oauth.ts';
 import {connections,listItems,dailyUsage,audit,getItem,queueEvent} from '../infra/store.ts';
 import {runCycle,queueCalendarChange} from '../app/pipeline.ts';
+import {getRules,setRules,validateRules} from '../domain/monitoring.ts';
 import {pushConfigured,subscribePush,unsubscribePush,listPush,isQuiet,revokePushBySession} from '../app/push.ts';
 import {HTML,JS,CSS,PWA_MANIFEST,SERVICE_WORKER,OFFLINE_PAGE,OFFLINE_CSS,INSTALL_HTML,INSTALL_CSS,INSTALL_JS,DEMO_HTML,ICON_192,ICON_512,ICON_MASKABLE} from './ui.ts';
 
@@ -160,12 +161,43 @@ export async function handle(req:Request,env:Env):Promise<Response>{
    await env.DB.prepare('UPDATE onboarding_progress SET notifications_skipped=1,updated_at=? WHERE id=1').bind(Date.now()).run();
    return json({ok:true});
   }
+  const rescanRoute=route.match(/^\/api\/connections\/(conn_[a-f0-9]{32}|[a-zA-Z0-9_-]{1,60})\/monitoring\/rescan$/);
+  if(rescanRoute&&req.method==='POST'){
+   const body=await readJson(req);if(body.confirm!==true)return err('EXPLICIT_CONFIRMATION_REQUIRED');
+   const cid=rescanRoute[1]!,now=Date.now();
+   // Bounded atomic requeue. No direct remote calendar action or cursor reset.
+   if(!env.DB.batch)throw new Error('DB_ATOMIC_BATCH_REQUIRED');
+   const ids=(await env.DB.prepare('SELECT inbox_id FROM monitoring_skips WHERE connection_id=? AND at>=? ORDER BY at DESC LIMIT 12').bind(cid,now-30*86400000).all<{inbox_id:number}>()).results.map(x=>x.inbox_id);
+   if(ids.length){
+    const placeholders=ids.map(()=>'?').join(',');
+    await env.DB.batch([
+     env.DB.prepare(`UPDATE inbox SET state='queued',attempts=0,next_attempt_at=0,last_error=NULL WHERE id IN (${placeholders}) AND connection_id=?`).bind(...ids,cid),
+     env.DB.prepare(`DELETE FROM monitoring_skips WHERE inbox_id IN (${placeholders}) AND connection_id=?`).bind(...ids,cid)
+    ]);
+   }
+   await audit(env.DB,'MONITORING_RESCAN_REQUESTED',ids.length?'BATCH':'EMPTY');
+   return json({ok:true,requeued:ids.length,notice:'As mensagens selecionadas serão reavaliadas nas próximas verificações, sujeitas ao orçamento gratuito.'});
+  }
+  const monitoringRoute=route.match(/^\/api\/connections\/(conn_[a-f0-9]{32}|[a-zA-Z0-9_-]{1,60})\/monitoring$/);
+  if(monitoringRoute&&req.method==='POST'){
+   const connectionId=monitoringRoute[1]!;
+   const exists=await env.DB.prepare('SELECT 1 AS ok FROM connections WHERE id=?').bind(connectionId).first();
+   if(!exists)return err('CONNECTION_NOT_FOUND',404);
+   const input=await readJson(req);
+   const rules=validateRules(input);
+   await setRules(env.DB,connectionId,rules,Date.now());
+   await audit(env.DB,'MONITORING_RULES_UPDATED',rules.mode);
+   return json({ok:true,mode:rules.mode,notice:'Configurações aplicadas às próximas mensagens. Mensagens já concluídas não são relidas automaticamente.'});
+  }
   if(route==='/api/data'&&req.method==='GET'){
    const conn=await connections(env.DB),items=await listItems(env.DB),usage=await dailyUsage(env.DB,Date.now()),preferences=await env.DB.prepare('SELECT event_reminder_minutes,task_reminder_minutes FROM preferences WHERE id=1').first();
+   const monitoring=Object.fromEntries(await Promise.all(conn.map(async c=>[c.id,await getRules(env.DB,c.id)])));
+   const monitoringSkips=(await env.DB.prepare('SELECT connection_id,COUNT(*) AS total FROM monitoring_skips GROUP BY connection_id LIMIT 100').all()).results;
+   const monitoringCounts=(await env.DB.prepare("SELECT connection_id,reason,SUM(count) AS total FROM monitoring_daily GROUP BY connection_id,reason ORDER BY connection_id,reason LIMIT 100").all()).results;
    const stuck=(await env.DB.prepare("SELECT id,connection_id,last_error,attempts FROM inbox WHERE state='retry' AND attempts>=5 ORDER BY id DESC LIMIT 20").all()).results;
    const changes=(await env.DB.prepare("SELECT id,item_id,action,state,last_error FROM calendar_changes WHERE state!='committed' ORDER BY updated_at DESC LIMIT 30").all()).results;
    const actions=(await env.DB.prepare("SELECT o.id,o.item_id,o.state,o.attempt_count,o.last_error FROM outbox o WHERE state!='committed' ORDER BY updated_at DESC LIMIT 30").all<Pick<OutboxRow,'id'|'item_id'|'state'|'attempt_count'|'last_error'>>()).results;
-   return json({connections:conn.map(sanitizeConn),items:items.map(sanitizedItem),outbox:actions,changes,stuck,usage,preferences,now:new Date().toISOString()});
+   return json({connections:conn.map(sanitizeConn),monitoring,monitoringCounts,monitoringSkips,items:items.map(sanitizedItem),outbox:actions,changes,stuck,usage,preferences,now:new Date().toISOString()});
   }
   if(route==='/api/preferences'&&req.method==='POST'){
    const body=await readJson(req);

@@ -1,9 +1,9 @@
 {
   "name": "aurora-academico",
-  "version": "2.2.0-rc.1",
+  "version": "2.3.0-rc.1",
   "private": true,
   "type": "module",
-  "description": "Aurora 2.2 — Assistente acadêmico pessoal, PWA, Web Push opcional, pré-homologação externa",
+  "description": "Aurora 2.3 RC — escopos por conta e triagem de metadados, PWA, notificações opcionais",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --experimental-sqlite --test tests/*.test.mjs",
@@ -32,7 +32,8 @@
     "restore:cloud:prepare": "node scripts/prepare-cloud-restore.mjs",
     "restore:cloud:new": "node scripts/restore-cloud-to-new.mjs",
     "push:keys": "node scripts/create-vapid-keys.mjs",
-    "bench:multi": "node --disable-warning=ExperimentalWarning --experimental-sqlite --experimental-strip-types bench/measure-multi-queries.mjs"
+    "bench:multi": "node --disable-warning=ExperimentalWarning --experimental-sqlite --experimental-strip-types bench/measure-multi-queries.mjs",
+    "bench:monitoring": "node --experimental-strip-types bench/monitoring-2.3.mjs"
   },
   "engines": {
     "node": ">=22.10.0"

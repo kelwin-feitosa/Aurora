@@ -4,7 +4,7 @@ import {OutlookAdapter} from '../providers/outlook.ts';
 import {ApiError} from '../providers/http.ts';
 import type {MailCalendarAdapter} from '../providers/adapter.ts';
 import {validAccessToken} from '../providers/oauth.ts';
-import {classifyMany} from '../domain/classifier.ts';
+import {getRules,triageEnvelope,shouldRead,evaluateScope,recordFiltered} from '../domain/monitoring.ts';
 import {applyAutomationPolicy} from '../domain/trust.ts';
 import {connections,pendingInbox,pendingOutbox,saveDecisions,queueEvent,getItem,incrementUsage,dailyUsage,audit,reserveProviderCall,reserveCalendarMutation} from '../infra/store.ts';
 import {shaHex} from '../infra/crypto.ts';
@@ -33,6 +33,7 @@ export async function syncConnection(env:Env,conn:Connection,http:ProviderHTTP={
  try{
   const usage=await dailyUsage(env.DB,now);
   if(usage.mail_reads>=maxDaily)throw new Error('DAILY_MAIL_READ_CAP');
+  const rules=await getRules(env.DB,conn.id);
   const token=await validAccessToken(env,conn,http);
   const impl=adapter(conn.provider,http);
   const page=await impl.listChanges(token,conn,Math.min(maxMessages,Math.max(1,maxDaily-usage.mail_reads)));
@@ -51,9 +52,15 @@ export async function syncConnection(env:Env,conn:Connection,http:ProviderHTTP={
   for(const row of pending){
    if(usedMailReads>=maxDaily)break;
    try{
+    const envelope=await impl.fetchEnvelope(token,row.remote_id);
+    const choice=triageEnvelope(envelope,rules);
+    if(!shouldRead(choice,rules)){
+     await recordFiltered(env.DB,conn.id,row.id,choice.reason,now);
+     continue;
+    }
     const msg=await impl.fetchMessage(token,row.remote_id);
     await incrementUsage(env.DB,'mail_reads',now);usedMailReads++;
-    const results=applyAutomationPolicy(env,msg,classifyMany(msg));
+    const results=applyAutomationPolicy(env,msg,evaluateScope(msg,rules));
     const items=await saveDecisions(env.DB,row,results,now);
     for(const item of items)await queueEvent(env.DB,item,now);
     await env.DB.prepare("UPDATE inbox SET state='done',last_error=NULL WHERE id=?").bind(row.id).run();
@@ -109,7 +116,7 @@ export async function deliverOutbox(env:Env,row:OutboxRow,http:ProviderHTTP={fet
   }
   await reserveCalendarMutation(env.DB,now);
   startedWrite=true;
-  const created=await impl.createEvent(token,cal,{id,title:allDay?`Prazo: ${item.title}`:item.title,startAt:allDay?item.due_date!:item.start_at!,description:'Criado pelo Aurora a partir de comunicado acadêmico. Consulte o e-mail original para confirmar detalhes.',remindMinutes:lead,allDay});
+  const created=await impl.createEvent(token,cal,{id,title:allDay?`Prazo: ${item.title}`:item.title,startAt:allDay?item.due_date!:item.start_at!,description:'Criado pelo Aurora a partir de mensagem revisada. Confira a fonte original para detalhes.',remindMinutes:lead,allDay});
   await markCommitted(env,row,item,created.id,now);
  }catch(e){
   const code=errCode(e);

@@ -43,6 +43,40 @@ function renderConnections(conns){
   }
  }
 }
+function renderMonitoring(connections){
+ const host=$('#monitoring-settings');if(!host)return;host.replaceChildren();
+ if(!connections.length){host.append(el('p','muted','Conecte Gmail ou Outlook para definir as regras.'));return;}
+ const labels={academic_strict:'Acadêmico (padrão)',academic_extended:'Acadêmico ampliado',personal:'Pessoal — ativação explícita'};
+ const keys=[['allowed_senders','Remetentes permitidos (um por linha)','professor@exemplo.edu.br'],['allowed_domains','Domínios permitidos (um por linha)','faculdade.edu.br'],['blocked_senders','Remetentes bloqueados','anuncios@exemplo.com'],['blocked_domains','Domínios bloqueados','ofertas.exemplo.com']];
+ for(const conn of connections){
+  const existing=state.data?.monitoring?.[conn.id]||{mode:'academic_strict',allowed_senders:[],allowed_domains:[],blocked_senders:[],blocked_domains:[],sensitive_opt_in:false};
+  const wrapper=el('section','monitoring-account'),title=el('h3','',conn.account_hint),form=el('form','monitoring-form');wrapper.append(title);
+  const modeLabel=el('label','','Perfil desta conta');const mode=el('select');mode.id='monitor-mode-'+conn.id;modeLabel.setAttribute('for',mode.id);
+  for(const [id,label] of Object.entries(labels)){const opt=el('option','',label);opt.value=id;mode.append(opt);}mode.value=existing.mode;
+  form.append(modeLabel,mode);
+  const lists={};for(const [key,label,placeholder] of keys){const field=el('label','',label),input=el('textarea');input.rows=2;input.maxLength=2048;input.placeholder=placeholder;input.id=key+'-'+conn.id;field.setAttribute('for',input.id);input.value=(existing[key]||[]).join('\n');lists[key]=input;form.append(field,input);}
+  const opt=el('label','monitor-checkbox'),check=el('input');check.type='checkbox';check.checked=Boolean(existing.sensitive_opt_in);check.id='sensitive-'+conn.id;opt.setAttribute('for',check.id);opt.append(check,el('span','','Incluir assuntos sensíveis (saúde e finanças) no modo pessoal — exige revisão antes de qualquer ação.'));form.append(opt);
+  const submit=el('button','button primary small','Salvar perfil e filtros');submit.type='submit';form.append(submit);
+  const counts=(state.data?.monitoringCounts||[]).filter(x=>x.connection_id===conn.id).reduce((n,x)=>n+Number(x.total||0),0);
+  const pending=Number((state.data?.monitoringSkips||[]).find(x=>x.connection_id===conn.id)?.total||0);
+  wrapper.append(el('p','muted small',counts+' decisões históricas de triagem por metadados. '+pending+' mensagens marcadas como dispensadas. O Aurora pode deixar avisos importantes de fora se suas fontes não estiverem configuradas.'));
+  if(pending){const rescan=button('Reavaliar até 12 mensagens dispensadas',async()=>{
+   if(!window.confirm('Reavaliar mensagens dispensadas dos últimos 30 dias? Isso pode consumir mais chamadas de API. O Aurora não criará compromissos sem sua confirmação.'))return;
+   try{const out=await api('/api/connections/'+conn.id+'/monitoring/rescan',{method:'POST',body:{confirm:true}});inform(out.requeued+' mensagens colocadas na fila. '+out.notice);await refresh();}catch(e){inform(e.message);}
+  });wrapper.append(rescan);}
+
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();const modeChoice=mode.value;
+   if(modeChoice==='personal'&&existing.mode!=='personal'&&!window.confirm('Ativar análise pessoal desta conta? O Aurora poderá ler o conteúdo das mensagens cujos metadados corresponderem aos filtros.'))return;
+   if(check.checked&&!existing.sensitive_opt_in&&!window.confirm('Incluir assuntos sensíveis como saúde e finanças? Eles sempre exigirão confirmação antes de qualquer ação.'))return;
+   const parsed={};for(const [key] of keys)parsed[key]=lists[key].value.split(/[\n,]/).map(x=>x.trim().toLowerCase()).filter(Boolean);
+   submit.disabled=true;
+   try{const result=await api('/api/connections/'+conn.id+'/monitoring',{method:'POST',body:{mode:modeChoice,...parsed,sensitive_opt_in:check.checked}});inform('Preferências salvas. '+result.notice);await refresh();}
+   catch(e){inform(e.message);}finally{submit.disabled=false;}
+  });
+  wrapper.append(form);host.append(wrapper);
+ }
+}
 function itemRow(item){
  const row=el('div','item'),details=el('div'),actions=el('div','row-actions');
  details.append(el('h3','',item.title),badge(item.state));
@@ -92,7 +126,7 @@ function renderOutbox(entries){const box=$('#outbox-list');box.replaceChildren()
  for(const failed of stuck){const row=el('div','action'),main=el('div');main.append(el('div','connection-title','Comunicado não processado — tentativas esgotadas'));main.append(el('div','connection-meta',failed.last_error||'Falha de leitura'));row.append(main,button('Tentar ler novamente',async()=>{if(!window.confirm('Deseja reiniciar as tentativas de leitura deste comunicado?'))return;try{await api('/api/inbox/'+failed.id+'/retry',{method:'POST',body:{confirm:true}});await refresh();}catch(e){inform(e.message);}}));box.append(row);
  }
 }
-async function refresh(){const data=await api('/api/data');state.data=data;if(data.preferences){$('#pref-event').value=String(data.preferences.event_reminder_minutes);$('#pref-task').value=String(data.preferences.task_reminder_minutes);}renderConnections(data.connections);renderItems(data.items);renderOutbox(data.outbox);
+async function refresh(){const data=await api('/api/data');state.data=data;if(data.preferences){$('#pref-event').value=String(data.preferences.event_reminder_minutes);$('#pref-task').value=String(data.preferences.task_reminder_minutes);}renderConnections(data.connections);renderMonitoring(data.connections);renderItems(data.items);renderOutbox(data.outbox);
  const usage=data.usage||{},limitWarning=(usage.provider_calls??0)>=450||(usage.mail_reads??0)>=180||(usage.calendar_writes??0)>=25;
  $('#quota-status').textContent=limitWarning?'Atenção: o Aurora está próximo de seu limite diário de segurança. Algumas verificações poderão aguardar até amanhã.':'Proteção gratuita: '+(usage.provider_calls??0)+' de 500 chamadas de provedor reservadas hoje. Esta contagem não equivale à cobrança da Cloudflare.';const connected=data.connections.length>0;$('#onboarding').classList.toggle('hide',connected);$('#setup-step').textContent=connected?'3':'1';renderProviderCards();}
 async function disconnect(id){if(!window.confirm('Desconectar apagará os registros locais desta conta. Eventos já criados continuarão na sua agenda. Confirma?'))return;try{await api('/api/connections/'+id+'/disconnect',{method:'POST',body:{confirm:true}});await refresh();}catch(e){inform(e.message);}}
