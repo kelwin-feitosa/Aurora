@@ -1,4 +1,5 @@
 import type {RemoteMessage,AcademicDecision} from '../types.ts';
+import type {MonitoringMode} from './monitoring.ts';
 import {parseCalendarInvites} from './ical.ts';
 
 const words={
@@ -30,13 +31,15 @@ function extractTime(text:string):{hh:string|null,evidence:string}{
  if(hour>23||minute>59)return {hh:null,evidence:match[0]};
  return {hh:`${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:00`,evidence:match[0]};
 }
-export function classify(message:RemoteMessage):AcademicDecision{
+export function classify(message:RemoteMessage,mode:MonitoringMode='academic_strict'):AcademicDecision{
  const title=message.subject.replace(/[<>\r\n\u0000-\u001f]/g,' ').trim().slice(0,140)||'Aviso acadêmico';
  const text=(message.subject+'\n'+message.body).slice(0,10000);
  const messageBody=message.body.replace(/[\u0000-\u001f]/g,' ').trim();
  const excerpt=messageBody.slice(0,260);
  const base={title,details:'Comunicado identificado automaticamente; consulte a mensagem original para detalhes.',source_excerpt:excerpt};
- const evt=words.event.test(text),task=words.task.test(text),cancel=words.cancel.test(text);
+ const evt=words.event.test(text)||(mode==='personal'&&/\b(consulta|dentista|compromisso|agendamento|anivers[aá]rio|reserva)\b/i.test(text))||(mode==='academic_extended'&&/\b(congresso|simp[oó]sio|entrevista|hackathon)\b/i.test(text));
+ const task=words.task.test(text)||(mode==='personal'&&/\b(pagamento|pagar|vencimento|fatura|boleto|renovar|quitar)\b/i.test(text))||(mode==='academic_extended'&&/\b(edital|seleç[aã]o|inscriç[aã]o|bolsa)\b/i.test(text));
+ const cancel=words.cancel.test(text);
  const date=extractDate(text),time=extractTime(text);
  const numericDates=[...text.matchAll(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](20\d{2})\b/g)].map(m=>`${m[3]}-${String(Number(m[2])).padStart(2,'0')}-${String(Number(m[1])).padStart(2,'0')}`);
  const namedDates=[...text.matchAll(/\b(\d{1,2})(?:[º°])?\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(20\d{2})\b/gi)].map(m=>`${m[3]}-${String(months[m[2]!.toLowerCase()]).padStart(2,'0')}-${String(Number(m[1])).padStart(2,'0')}`);
@@ -67,28 +70,28 @@ export function escapeHtml(s:string):string{return s.replace(/&/g,'&amp;').repla
  * written remotely without individual human approval. We keep up to three
  * independently reviewable proposals; larger/malformed lists remain one review.
  */
-export function classifyMany(message:RemoteMessage):AcademicDecision[]{
+export function classifyMany(message:RemoteMessage,mode:MonitoringMode='academic_strict'):AcademicDecision[]{
  // Partial MIME extraction must never make an irreversible decision based on
  // the first paragraph while silently ignoring later deadlines or changes.
  if(message.textIncomplete){
-  const d=classify(message);
+  const d=classify(message,mode);
   return [{...d,kind:'review',state:'review',confidence:'ambiguous',start_at:null,
    rationale:'O e-mail excedeu os limites de leitura segura; confira o conteúdo integral na caixa de entrada antes de aprovar.'}];
  }
  if(message.calendarText?.length){
-  if(message.calendarText.length>2)return [{...classify(message),kind:'review',state:'review',confidence:'ambiguous',rationale:'Múltiplos anexos de calendário: conferir manualmente antes de qualquer ação',start_at:null}];
+  if(message.calendarText.length>2)return [{...classify(message,mode),kind:'review',state:'review',confidence:'ambiguous',rationale:'Múltiplos anexos de calendário: conferir manualmente antes de qualquer ação',start_at:null}];
   return message.calendarText.flatMap(s=>parseCalendarInvites(s)).slice(0,3);
  }
  const lines=message.body.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
- if(lines.length<2||lines.length>30)return [classify(message)];
+ if(lines.length<2||lines.length>30)return [classify(message,mode)];
  const relevant=lines.filter(x=>/\b(?:20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]20\d{2}|\d{1,2}\s+de\s+[a-zç]+\s+de\s+20\d{2})\b/i.test(x));
- if(relevant.length<2)return [classify(message)];
- if(relevant.length>3)return [{...classify(message),kind:'review',state:'review',confidence:'ambiguous',start_at:null,rationale:'Mensagem contém mais de três datas: exige revisão integral, sem descartar compromissos silenciosamente'}];
- const proposals=relevant.map(line=>classify({...message,subject:line.slice(0,140),body:line,calendarText:undefined}));
+ if(relevant.length<2)return [classify(message,mode)];
+ if(relevant.length>3)return [{...classify(message,mode),kind:'review',state:'review',confidence:'ambiguous',start_at:null,rationale:'Mensagem contém mais de três datas: exige revisão integral, sem descartar compromissos silenciosamente'}];
+ const proposals=relevant.map(line=>classify({...message,subject:line.slice(0,140),body:line,calendarText:undefined},mode));
  // If any line cannot be classified as a specific event/task, force one
  // holistic review; fragments must not be silently misinterpreted.
  if(proposals.some(x=>!['event','task'].includes(x.kind)||!x.start_at&&!x.due_date))
-  return [{...classify(message),kind:'review',state:'review',confidence:'ambiguous',start_at:null,rationale:'Mensagem com várias datas, algumas ambíguas: revise a mensagem completa'}];
+  return [{...classify(message,mode),kind:'review',state:'review',confidence:'ambiguous',start_at:null,rationale:'Mensagem com várias datas, algumas ambíguas: revise a mensagem completa'}];
  return proposals.map(x=>({...x,state:'review',confidence:'ambiguous',
   rationale:'Uma das datas da mensagem com múltiplos compromissos: confirme cada item separadamente antes de criar lembretes.'}));
 }

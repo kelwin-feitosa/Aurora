@@ -50,6 +50,16 @@ export class GmailAdapter implements MailCalendarAdapter{
   if(ids.size>30)throw new Error('GMAIL_BATCH_TOO_LARGE_REQUIRES_SMALLER_PAGE');
   return {messages:[...ids].map(id=>({id,revision:'0'})),nextPage:encodeContinuation(r.nextPageToken??null),nextCursor:r.nextPageToken?null:r.historyId};
  }
+ async fetchEnvelope(token:string,id:string):Promise<import('../domain/monitoring.ts').MessageEnvelope>{
+  if(!/^[A-Za-z0-9_-]{1,200}$/.test(id))throw new Error('GMAIL_INVALID_ID');
+  const u=new URL(`${MAIL}/messages/${encodeURIComponent(id)}`);
+  u.searchParams.set('format','metadata');u.searchParams.append('metadataHeaders','Subject');u.searchParams.append('metadataHeaders','From');
+  const r=await apiJson<GmailMessage>(this.http,u.toString(),token);
+  const headers=r.payload?.headers??[];
+  const get=(name:string)=>headers.find(h=>h.name.toLowerCase()===name)?.value??'';
+  const at=Number(r.internalDate);
+  return {id,subject:get('subject').slice(0,400),sender:get('from').slice(0,320),receivedAt:Number.isFinite(at)&&at>0?new Date(at).toISOString():new Date(0).toISOString()};
+ }
  async fetchMessage(token:string,id:string):Promise<RemoteMessage>{
   if(!/^[A-Za-z0-9_-]{1,200}$/.test(id)) throw new Error('GMAIL_INVALID_ID');
   const r=await apiJson<GmailMessage>(this.http,`${MAIL}/messages/${encodeURIComponent(id)}?format=full`,token);

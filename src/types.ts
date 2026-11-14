@@ -26,7 +26,8 @@ export interface Env {
   PUSH_ENABLED?: string;
   /** Defaults to human review. Explicit opt-in and exact sender address allowlist
    * are needed to enable calendar writes without a manual confirmation. */
-  AUTO_APPROVE_MODE?: 'review' | 'trusted-senders';
+  /** Legacy trusted-senders is accepted only for migration; no automatic writes in 2.4. */
+ AUTO_APPROVE_MODE?: 'review' | 'trusted-senders';
   TRUSTED_SENDER_ADDRESSES?: string;
 }
 export interface ExecutionContext {waitUntil(promise:Promise<unknown>):void;}
@@ -36,7 +37,7 @@ export interface RemoteMessage {
   /** Provider text was cropped or MIME traversal hit a safety cap. Never auto-act on partial evidence. */
   textIncomplete?:boolean;
 }
-export interface SyncPage {messages: Array<{id:string;revision:string}>; nextPage:string|null; nextCursor:string|null; anchor?:string|null;}
+export interface SyncPage {messages: Array<{id:string;revision:string; envelope?:import('./domain/monitoring.ts').MessageEnvelope}>; nextPage:string|null; nextCursor:string|null; anchor?:string|null;}
 export interface Connection {
   id:string; provider:ProviderId; account_hint:string; token_ciphertext:string;
   calendar_id:string|null; sync_cursor:string|null; sync_page:string|null;
@@ -47,6 +48,8 @@ export interface Connection {
 export interface InboxRow {
  id:number; connection_id:string;remote_id:string;remote_revision:string;
  state:'queued'|'done'|'retry';attempts:number;next_attempt_at:number;last_error:string|null;received_at:number;
+ /** Bounded, explicitly requested full review of a previously filtered message. */
+ force_full_read:number;
 }
 export interface AcademicItem {
  id:string;connection_id:string;inbox_id:number;kind:'event'|'task'|'notice'|'review';

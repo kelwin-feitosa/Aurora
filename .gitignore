@@ -12,3 +12,17 @@ coverage/
 .DS_Store
 
 .vapid-keys.local
+
+# Aurora: never version generated archives, dumps, secrets or local artifacts
+*.zip
+*.tar
+*.gz
+*.sql.gz
+*.bak
+*.dump
+.dev.vars*
+!.dev.vars.example
+*.pem
+*.key
+*.p12
+*.pfx

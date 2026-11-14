@@ -9,7 +9,7 @@ export class OutlookAdapter implements MailCalendarAdapter{
  readonly id='outlook';private http:ProviderHTTP;constructor(http:ProviderHTTP){this.http=http;}
  async whoAmI(token:string):Promise<string>{const r=await apiJson<{mail?:string;userPrincipalName?:string}>(this.http,`${ROOT}/me?$select=mail,userPrincipalName`,token);return r.mail||r.userPrincipalName||'Conta Outlook';}
  async listChanges(token:string,conn:Connection,limit:number):Promise<SyncPage>{
-  const first=new URL(MAIL);first.searchParams.set('$select','id,subject,receivedDateTime');first.searchParams.set('$top',String(Math.max(1,Math.min(limit,10))));
+  const first=new URL(MAIL);first.searchParams.set('$select','id,subject,from,receivedDateTime');first.searchParams.set('$top',String(Math.max(1,Math.min(limit,10))));
   if(!conn.sync_cursor&&!conn.sync_page)first.searchParams.set('$filter',`receivedDateTime ge ${new Date(Date.now()-30*86400000).toISOString()}`);
   const url=conn.sync_page? safeGraphUrl(conn.sync_page):conn.sync_cursor? safeGraphUrl(conn.sync_cursor):first.toString();
   let r:{value:GraphMsg[];'@odata.nextLink'?:string;'@odata.deltaLink'?:string};
@@ -18,7 +18,20 @@ export class OutlookAdapter implements MailCalendarAdapter{
   const nextPage=r['@odata.nextLink']?safeGraphUrl(r['@odata.nextLink']):null;
   const nextCursor=r['@odata.deltaLink']?safeGraphUrl(r['@odata.deltaLink']):null;
   if(!nextPage&&!nextCursor)throw new Error('GRAPH_MISSING_DELTA_CHECKPOINT');
-  return {messages:(r.value??[]).filter(x=>!x['@removed']).map(x=>({id:x.id,revision:'0'})),nextPage,nextCursor,anchor:null};
+  return {messages:(r.value??[]).filter(x=>!x['@removed']).map(x=>({
+   id:x.id,revision:'0',
+   // Reuse provider-returned headers within this tick instead of another Graph GET.
+   // Delta tokens created by older versions may lack fields: fall back safely.
+   ...(typeof x.subject==='string'&&typeof x.from?.emailAddress?.address==='string'
+     ?{envelope:{id:x.id,subject:x.subject.slice(0,400),sender:x.from.emailAddress.address.slice(0,320),receivedAt:x.receivedDateTime??new Date(0).toISOString()}}
+     :{})
+  })),nextPage,nextCursor,anchor:null};
+ }
+ async fetchEnvelope(token:string,id:string):Promise<import('../domain/monitoring.ts').MessageEnvelope>{
+  if(id.length>400||!id||/[\r\n]/.test(id))throw new Error('GRAPH_INVALID_ID');
+  const url=`${ROOT}/me/messages/${encodeURIComponent(id)}?$select=id,subject,from,receivedDateTime`;
+  const r=await apiJson<GraphMsg>(this.http,url,token,{headers:H});
+  return {id,subject:(r.subject??'').slice(0,400),sender:(r.from?.emailAddress?.address??'').slice(0,320),receivedAt:r.receivedDateTime??new Date(0).toISOString()};
  }
  async fetchMessage(token:string,id:string):Promise<RemoteMessage>{
   if(id.length>400||!id||/[\r\n]/.test(id))throw new Error('GRAPH_INVALID_ID');

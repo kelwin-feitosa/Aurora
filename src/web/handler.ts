@@ -4,6 +4,7 @@ import {sha256,shaHex} from '../infra/crypto.ts';
 import {beginOauth,finishOauth,oauthEnabled} from '../providers/oauth.ts';
 import {connections,listItems,dailyUsage,audit,getItem,queueEvent} from '../infra/store.ts';
 import {runCycle,queueCalendarChange} from '../app/pipeline.ts';
+import {getRules,setRules,validateRules} from '../domain/monitoring.ts';
 import {pushConfigured,subscribePush,unsubscribePush,listPush,isQuiet,revokePushBySession} from '../app/push.ts';
 import {HTML,JS,CSS,PWA_MANIFEST,SERVICE_WORKER,OFFLINE_PAGE,OFFLINE_CSS,INSTALL_HTML,INSTALL_CSS,INSTALL_JS,DEMO_HTML,ICON_192,ICON_512,ICON_MASKABLE} from './ui.ts';
 
@@ -140,7 +141,7 @@ export async function handle(req:Request,env:Env):Promise<Response>{
    const count=await env.DB.prepare('SELECT COUNT(*) AS n, SUM(CASE WHEN last_error IS NOT NULL OR enabled=0 THEN 1 ELSE 0 END) AS errors FROM connections').first<{n:number;errors:number}>();
    const pending=await env.DB.prepare("SELECT COUNT(*) AS n,MIN(received_at) AS oldest FROM inbox WHERE state IN ('queued','retry') AND attempts<5").first<{n:number;oldest:number|null}>();
    const age=checked-Number(last.cron_last_success||0);
-   return json({database:alive?.ok===1,providers:config,automation_mode:env.AUTO_APPROVE_MODE==='trusted-senders'?'Remetentes autorizados por configuração (From não autenticado)':'Revisão humana por padrão',connections:count?.n??0,connections_with_error:count?.errors??0,pending_messages:pending?.n??0,oldest_pending_minutes:pending?.oldest?Math.max(0,Math.round((checked-pending.oldest)/60000)):null,cron_status:last.cron_last_success?(age<45*60*1000?'Última execução concluída: '+new Date(Number(last.cron_last_success)).toISOString():'Última execução registrada há mais de 45 minutos. Verifique o agendador.'):'Nenhuma execução automática confirmada. Verifique o Cron Trigger.',checked_at:new Date(checked).toISOString()});
+   return json({database:alive?.ok===1,providers:config,automation_mode:'Revisão humana obrigatória (From não autenticado; autoconfirmação desativada)',connections:count?.n??0,connections_with_error:count?.errors??0,pending_messages:pending?.n??0,oldest_pending_minutes:pending?.oldest?Math.max(0,Math.round((checked-pending.oldest)/60000)):null,cron_status:last.cron_last_success?(age<45*60*1000?'Última execução concluída: '+new Date(Number(last.cron_last_success)).toISOString():'Última execução registrada há mais de 45 minutos. Verifique o agendador.'):'Nenhuma execução automática confirmada. Verifique o Cron Trigger.',checked_at:new Date(checked).toISOString()});
   }
   if(route==='/api/onboarding'&&req.method==='GET'){
    // Status is derived from actual DB, OAuth settings and calendar selection; clicks cannot forge readiness.
@@ -160,12 +161,45 @@ export async function handle(req:Request,env:Env):Promise<Response>{
    await env.DB.prepare('UPDATE onboarding_progress SET notifications_skipped=1,updated_at=? WHERE id=1').bind(Date.now()).run();
    return json({ok:true});
   }
+  const rescanRoute=route.match(/^\/api\/connections\/(conn_[a-f0-9]{32}|[a-zA-Z0-9_-]{1,60})\/monitoring\/rescan$/);
+  if(rescanRoute&&req.method==='POST'){
+   const body=await readJson(req);if(body.confirm!==true)return err('EXPLICIT_CONFIRMATION_REQUIRED');
+   const cid=rescanRoute[1]!,now=Date.now();
+   // Bounded atomic requeue. No direct remote calendar action or cursor reset.
+   if(!env.DB.batch)throw new Error('DB_ATOMIC_BATCH_REQUIRED');
+   const ids=(await env.DB.prepare(`SELECT inbox_id FROM monitoring_skips WHERE connection_id=? AND at>=?
+     AND reason IN ('UNRECOGNIZED_SOURCE','UNRECOGNIZED_PERSONAL_SOURCE','PROMOTIONAL_SUBJECT','SENDER_UNVERIFIED_OR_MALFORMED')
+     ORDER BY at DESC LIMIT 12`).bind(cid,now-30*86400000).all<{inbox_id:number}>()).results.map(x=>x.inbox_id);
+   if(ids.length){
+    const placeholders=ids.map(()=>'?').join(',');
+    await env.DB.batch([
+     env.DB.prepare(`UPDATE inbox SET state='queued',attempts=0,next_attempt_at=0,last_error=NULL,force_full_read=1 WHERE id IN (${placeholders}) AND connection_id=?`).bind(...ids,cid),
+     env.DB.prepare(`DELETE FROM monitoring_skips WHERE inbox_id IN (${placeholders}) AND connection_id=?`).bind(...ids,cid)
+    ]);
+   }
+   await audit(env.DB,'MONITORING_RESCAN_REQUESTED',ids.length?'BATCH':'EMPTY');
+   return json({ok:true,requeued:ids.length,notice:'As mensagens elegíveis terão o conteúdo consultado uma vez após confirmação. Bloqueios explícitos e assuntos sensíveis desativados continuam protegidos.'});
+  }
+  const monitoringRoute=route.match(/^\/api\/connections\/(conn_[a-f0-9]{32}|[a-zA-Z0-9_-]{1,60})\/monitoring$/);
+  if(monitoringRoute&&req.method==='POST'){
+   const connectionId=monitoringRoute[1]!;
+   const exists=await env.DB.prepare('SELECT 1 AS ok FROM connections WHERE id=?').bind(connectionId).first();
+   if(!exists)return err('CONNECTION_NOT_FOUND',404);
+   const input=await readJson(req);
+   const rules=validateRules(input);
+   await setRules(env.DB,connectionId,rules,Date.now());
+   await audit(env.DB,'MONITORING_RULES_UPDATED',rules.mode);
+   return json({ok:true,mode:rules.mode,notice:'Configurações aplicadas às próximas mensagens. Mensagens já concluídas não são relidas automaticamente.'});
+  }
   if(route==='/api/data'&&req.method==='GET'){
    const conn=await connections(env.DB),items=await listItems(env.DB),usage=await dailyUsage(env.DB,Date.now()),preferences=await env.DB.prepare('SELECT event_reminder_minutes,task_reminder_minutes FROM preferences WHERE id=1').first();
+   const monitoring=Object.fromEntries(await Promise.all(conn.map(async c=>[c.id,await getRules(env.DB,c.id)])));
+   const monitoringSkips=(await env.DB.prepare('SELECT connection_id,COUNT(*) AS total FROM monitoring_skips GROUP BY connection_id LIMIT 100').all()).results;
+   const monitoringCounts=(await env.DB.prepare("SELECT connection_id,reason,SUM(count) AS total FROM monitoring_daily GROUP BY connection_id,reason ORDER BY connection_id,reason LIMIT 100").all()).results;
    const stuck=(await env.DB.prepare("SELECT id,connection_id,last_error,attempts FROM inbox WHERE state='retry' AND attempts>=5 ORDER BY id DESC LIMIT 20").all()).results;
    const changes=(await env.DB.prepare("SELECT id,item_id,action,state,last_error FROM calendar_changes WHERE state!='committed' ORDER BY updated_at DESC LIMIT 30").all()).results;
    const actions=(await env.DB.prepare("SELECT o.id,o.item_id,o.state,o.attempt_count,o.last_error FROM outbox o WHERE state!='committed' ORDER BY updated_at DESC LIMIT 30").all<Pick<OutboxRow,'id'|'item_id'|'state'|'attempt_count'|'last_error'>>()).results;
-   return json({connections:conn.map(sanitizeConn),items:items.map(sanitizedItem),outbox:actions,changes,stuck,usage,preferences,now:new Date().toISOString()});
+   return json({connections:conn.map(sanitizeConn),monitoring,monitoringCounts,monitoringSkips,items:items.map(sanitizedItem),outbox:actions,changes,stuck,usage,preferences,now:new Date().toISOString()});
   }
   if(route==='/api/preferences'&&req.method==='POST'){
    const body=await readJson(req);

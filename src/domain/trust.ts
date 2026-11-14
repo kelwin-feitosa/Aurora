@@ -1,19 +1,15 @@
 import type {Env,RemoteMessage,AcademicDecision} from '../types.ts';
-/** Sender headers are untrusted claims, NOT proof of DKIM/DMARC. Default to
- * human review. The strict allowlist is an informed, opt-in convenience. */
-export function allowedAutomaticSender(env:Env,message:RemoteMessage):boolean {
- if(env.AUTO_APPROVE_MODE!=='trusted-senders')return false;
- const addresses=(env.TRUSTED_SENDER_ADDRESSES??'').split(',').map(v=>v.trim().toLowerCase());
- const raw=(message.sender??'').trim();
- if(!raw||raw.length>320||/[\r\n]/.test(raw))return false;
- const match=raw.match(/^(?:[^<>]*<)?([a-z0-9._%+\-]+@[a-z0-9.\-]+)(?:>)?$/i);
- if(!match)return false;
- return addresses.includes(match[1]!.toLowerCase());
+/** Emails and their From headers are untrusted data. There is currently no
+ * provider-authenticated sender attestation available in the adapter contract.
+ * The legacy trusted-senders setting is deliberately fail-closed until an
+ * authenticated implementation is available; NO automatic calendar writes. */
+export function allowedAutomaticSender(_env:Env,_message:RemoteMessage):boolean {
+ return false;
 }
 export function applyAutomationPolicy(env:Env,message:RemoteMessage,decisions:AcademicDecision[]):AcademicDecision[]{
  const trusted=allowedAutomaticSender(env,message);
  return decisions.map(d=>d.state==='approved'&&!trusted?{
   ...d,state:'review',confidence:'ambiguous',
-  rationale:'Revisão obrigatória: remetente não autorizado para criar compromissos automaticamente. Confira a origem antes de confirmar.'
+  rationale:'Revisão obrigatória: o campo From não comprova a identidade do remetente. Confirme a origem e os dados antes de criar compromissos.'
  }:d);
 }

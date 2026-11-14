@@ -4,7 +4,7 @@ import {OutlookAdapter} from '../providers/outlook.ts';
 import {ApiError} from '../providers/http.ts';
 import type {MailCalendarAdapter} from '../providers/adapter.ts';
 import {validAccessToken} from '../providers/oauth.ts';
-import {classifyMany} from '../domain/classifier.ts';
+import {getRules,triageEnvelope,shouldRead,evaluateScope,recordFiltered} from '../domain/monitoring.ts';
 import {applyAutomationPolicy} from '../domain/trust.ts';
 import {connections,pendingInbox,pendingOutbox,saveDecisions,queueEvent,getItem,incrementUsage,dailyUsage,audit,reserveProviderCall,reserveCalendarMutation} from '../infra/store.ts';
 import {shaHex} from '../infra/crypto.ts';
@@ -33,6 +33,7 @@ export async function syncConnection(env:Env,conn:Connection,http:ProviderHTTP={
  try{
   const usage=await dailyUsage(env.DB,now);
   if(usage.mail_reads>=maxDaily)throw new Error('DAILY_MAIL_READ_CAP');
+  const rules=await getRules(env.DB,conn.id);
   const token=await validAccessToken(env,conn,http);
   const impl=adapter(conn.provider,http);
   const page=await impl.listChanges(token,conn,Math.min(maxMessages,Math.max(1,maxDaily-usage.mail_reads)));
@@ -47,16 +48,27 @@ export async function syncConnection(env:Env,conn:Connection,http:ProviderHTTP={
   if(!env.DB.batch)throw new Error('DB_ATOMIC_BATCH_REQUIRED');
   await env.DB.batch(statements);
   const pending=await pendingInbox(env.DB,conn.id,now,maxMessages);
+  // Cache only this provider page in memory; no private header persistence in D1.
+  const pageEnvelopes=new Map(page.messages.filter(m=>m.envelope).map(m=>[m.id,m.envelope!]));
   let usedMailReads=usage.mail_reads;
   for(const row of pending){
    if(usedMailReads>=maxDaily)break;
    try{
+    const envelope=pageEnvelopes.get(row.remote_id)??await impl.fetchEnvelope(token,row.remote_id);
+    const choice=triageEnvelope(envelope,rules);
+    // A voluntary rescan must not silently apply the same filter again.
+    // Explicit blocklists and sensitive-category opt-out remain authoritative.
+    const protectedSkip=choice.reason==='EXPLICITLY_BLOCKED_SOURCE'||choice.reason==='SENSITIVE_CATEGORY_OPT_OUT';
+    if(!shouldRead(choice,rules)&&(row.force_full_read!==1||protectedSkip)){
+     await recordFiltered(env.DB,conn.id,row.id,choice.reason,now);
+     continue;
+    }
     const msg=await impl.fetchMessage(token,row.remote_id);
     await incrementUsage(env.DB,'mail_reads',now);usedMailReads++;
-    const results=applyAutomationPolicy(env,msg,classifyMany(msg));
+    const results=applyAutomationPolicy(env,msg,evaluateScope(msg,rules));
     const items=await saveDecisions(env.DB,row,results,now);
     for(const item of items)await queueEvent(env.DB,item,now);
-    await env.DB.prepare("UPDATE inbox SET state='done',last_error=NULL WHERE id=?").bind(row.id).run();
+    await env.DB.prepare("UPDATE inbox SET state='done',last_error=NULL,force_full_read=0 WHERE id=? AND connection_id=?").bind(row.id,conn.id).run();
    }catch(e){
     const code=errCode(e),attempts=row.attempts+1;
     const retry=attempts<5;
@@ -109,7 +121,7 @@ export async function deliverOutbox(env:Env,row:OutboxRow,http:ProviderHTTP={fet
   }
   await reserveCalendarMutation(env.DB,now);
   startedWrite=true;
-  const created=await impl.createEvent(token,cal,{id,title:allDay?`Prazo: ${item.title}`:item.title,startAt:allDay?item.due_date!:item.start_at!,description:'Criado pelo Aurora a partir de comunicado acadêmico. Consulte o e-mail original para confirmar detalhes.',remindMinutes:lead,allDay});
+  const created=await impl.createEvent(token,cal,{id,title:allDay?`Prazo: ${item.title}`:item.title,startAt:allDay?item.due_date!:item.start_at!,description:'Criado pelo Aurora a partir de mensagem revisada. Confira a fonte original para detalhes.',remindMinutes:lead,allDay});
   await markCommitted(env,row,item,created.id,now);
  }catch(e){
   const code=errCode(e);
