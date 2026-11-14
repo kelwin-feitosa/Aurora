@@ -1,0 +1,11 @@
+
+let step=1;const $=id=>document.getElementById(id);const change=n=>{step=n;try{localStorage.setItem('aurora_install_step',String(n));}catch{}for(let i=1;i<=5;i++)$('s'+i).classList.toggle('hide',i!==n);$('progress').style.width=(n*20)+'%';$('step-label').textContent='PASSO '+n+' DE 5';$('back').disabled=n===1;$('next').textContent=n===5?'Abrir Aurora':'Continuar';};
+$('back').addEventListener('click',()=>change(Math.max(1,step-1)));$('next').addEventListener('click',()=>{if(step===5){window.location.href=$('open-app').href.startsWith('https://')?$('open-app').href:'/';return;}change(step+1)});
+$('deploy').addEventListener('click',()=>{const raw=$('repo').value.trim();const match=raw.match(/^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/?$/i);if(!match){alert('Informe um repositório GitHub público válido.');return;}const target='https://deploy.workers.cloudflare.com/?url='+encodeURIComponent('https://github.com/'+match[1]+'/'+match[2]);window.open(target,'_blank','noopener,noreferrer');});
+$('generate').addEventListener('click',()=>{const rand=n=>{const bytes=new Uint8Array(n);crypto.getRandomValues(bytes);return btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');};$('appsecret').value=rand(32);$('pass').value='aurora-'+rand(24);});
+document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',async()=>{const input=$(b.dataset.copy);if(!input.value)return;try{await navigator.clipboard.writeText(input.value);b.textContent='Copiado';}catch{input.type='text';input.select();document.execCommand('copy');input.type='password';b.textContent='Copiado';}setTimeout(()=>b.textContent='Copiar',1600)}));
+$('origin').addEventListener('input',()=>{const value=$('origin').value.trim().replace(/\/$/,'');let valid='';try{const u=new URL(value);if(u.protocol==='https:'&&u.pathname==='/'&&!u.search&&!u.hash)valid=u.origin;}catch{}$('google-redirect').value=valid?valid+'/api/oauth/callback/gmail':'';$('ms-redirect').value=valid?valid+'/api/oauth/callback/outlook':'';$('open-app').href=valid||'#';});
+
+// The wizard stores no tokens or secrets in browser storage. Only official consent can authorize providers.
+
+try{const saved=Number(localStorage.getItem('aurora_install_step'));if(Number.isInteger(saved)&&saved>=1&&saved<=5)change(saved);}catch{}

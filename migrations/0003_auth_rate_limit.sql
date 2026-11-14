@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS auth_attempts (fingerprint TEXT PRIMARY KEY, attempts INTEGER NOT NULL DEFAULT 0, last_at INTEGER NOT NULL);

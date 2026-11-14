@@ -1,0 +1,96 @@
+{
+  "evaluated_at": "2026-11-13T02:25:21.795Z",
+  "dataset": "sintético independente de contas; 68 mensagens criadas por templates; dados artificiais; rótulos manuais por tipo de caso",
+  "n": 68,
+  "before_1_6": {
+    "tp": 18,
+    "fp": 26,
+    "tn": 24,
+    "fn": 0,
+    "by_tag": {
+      "evento_explicito": {
+        "n": 20,
+        "errors": 10
+      },
+      "tarefa_explicita": {
+        "n": 16,
+        "errors": 8
+      },
+      "ambiguo": {
+        "n": 12,
+        "errors": 0
+      },
+      "aviso": {
+        "n": 12,
+        "errors": 0
+      },
+      "injection": {
+        "n": 8,
+        "errors": 8
+      }
+    },
+    "auto_precision": 0.4090909090909091,
+    "auto_recall": 1
+  },
+  "after_2_0_trusted_allowlist": {
+    "tp": 18,
+    "fp": 0,
+    "tn": 50,
+    "fn": 0,
+    "by_tag": {
+      "evento_explicito": {
+        "n": 20,
+        "errors": 0
+      },
+      "tarefa_explicita": {
+        "n": 16,
+        "errors": 0
+      },
+      "ambiguo": {
+        "n": 12,
+        "errors": 0
+      },
+      "aviso": {
+        "n": 12,
+        "errors": 0
+      },
+      "injection": {
+        "n": 8,
+        "errors": 0
+      }
+    },
+    "auto_precision": 1,
+    "auto_recall": 1
+  },
+  "after_2_0_safe_default": {
+    "tp": 0,
+    "fp": 0,
+    "tn": 50,
+    "fn": 18,
+    "by_tag": {
+      "evento_explicito": {
+        "n": 20,
+        "errors": 10
+      },
+      "tarefa_explicita": {
+        "n": 16,
+        "errors": 8
+      },
+      "ambiguo": {
+        "n": 12,
+        "errors": 0
+      },
+      "aviso": {
+        "n": 12,
+        "errors": 0
+      },
+      "injection": {
+        "n": 8,
+        "errors": 0
+      }
+    },
+    "auto_precision": null,
+    "auto_recall": 0
+  },
+  "note": "Métrica é APENAS autorização de criação automática no corpus sintético; não é precisão acadêmica real. O modo padrão seguro sacrifica recall automático."
+}

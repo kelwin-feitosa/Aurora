@@ -1,0 +1,14 @@
+# Instalação pessoal da Aurora 2.2 — roteiro real
+
+**Expectativa:** o Aurora 2.2 não tem um instalador universal de um clique. A Cloudflare e provedores OAuth exigem ações legítimas do proprietário. Não insira credenciais nem e-mails pessoais no chat.
+
+1. Use o repositório do Aurora publicado legitimamente e o botão `Deploy to Cloudflare` desse repositório quando existir; nunca confie em links inventados. O fluxo oficial pode provisionar D1: https://developers.cloudflare.com/workers/platform/deploy-buttons/ . Se não houver repositório público com botão real, use a instalação técnica prevista em `docs/DEPLOY-CLOUDFLARE.md` e `/instalar`.
+2. Confirme **Workers Free**, D1 e Cron. Registre o domínio `https://<instancia>.workers.dev` em `PUBLIC_ORIGIN`. Configure `APP_SECRET` de 32 bytes aleatórios e `INSTALLATION_PASSPHRASE` segura usando Secrets do Worker, sem commit de `.dev.vars`.
+3. Aplique migrações 0001–0015. `npm run migrate:remote` exige sessão autorizada Wrangler; o botão não substitui essa checagem. Não rode migrador em banco alheio. `npm run doctor` e `npm run schema:status` ajudam no diagnóstico local; Cloudflare precisa de prova remota.
+4. Crie os registros OAuth no Google Cloud (Gmail) e/ou Microsoft Entra (Outlook), configure callbacks da instalação exatamente conforme documentação, peça consentimento à instituição se necessário. O estudante entra somente nas páginas oficiais dos provedores.
+5. Abra a URL pessoal, entre com a senha da instalação e conecte Gmail/Outlook. Em `/api/onboarding` autenticado, verifique os estados. Conclua um compromisso de teste explicitamente para que `CALENDAR_TESTED` reflita um evento realmente confirmado.
+6. Instale a PWA pelo menu de Chrome/Edge no desktop e Android; no iOS use Safari → Compartilhar → Adicionar à Tela de Início. Não precisa manter o computador ligado após deploy.
+7. **Push opcional:** enquanto conectado à máquina de configuração, execute `npm run push:keys`. Ele cria `.vapid-keys.local` (modo 0600, ignorado no Git); preencha um contato VAPID e transfira `PUSH_ENABLED=1`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CONTACT` para os secrets/vars apropriados sem compartilhá-los. Na PWA instalada, vá em Conexões → Notificações → Ativar neste aparelho; escolha horários de silêncio. Negar permissão NÃO interrompe o calendário.
+8. Faça backup cifrado antes de upgrades e aplique novas migrações, preservando APP_SECRET. Após upgrade, verifique OAuth, correções de calendário e push. Revogar uma sessão também revoga seu push; expiração natural de login não desativa alertas previamente autorizados.
+
+**Bloqueios/segurança:** sem aprovação Google/Microsoft não é possível conectar contas da instituição. Não há homologação do gateway de push iOS/Android. O script de secrets é offline; não gera domínio nem configura OAuth por conta do aluno.

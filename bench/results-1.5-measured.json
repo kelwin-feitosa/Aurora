@@ -1,0 +1,41 @@
+{
+  "executed_at": "2026-11-12T18:10:02.607Z",
+  "runtime": "v22.16.0",
+  "environment": "Node.js localhost, SQLite nativo (NÃO é D1/Workers)",
+  "note": "Tempos por operação isolada. Não representam CPU da Cloudflare, disponibilidade nem acurácia em e-mails reais.",
+  "samples": {
+    "classification": {
+      "n": 3000,
+      "p50_ms": 0.0057,
+      "p95_ms": 0.0062,
+      "p99_ms": 0.0281,
+      "max_ms": 0.1163,
+      "mean_ms": 0.0064
+    },
+    "sqlite_insert": {
+      "n": 1000,
+      "p50_ms": 0.0124,
+      "p95_ms": 0.0218,
+      "p99_ms": 0.0798,
+      "max_ms": 1.4675,
+      "mean_ms": 0.0161
+    },
+    "sqlite_index_lookup": {
+      "n": 1000,
+      "p50_ms": 0.0051,
+      "p95_ms": 0.0066,
+      "p99_ms": 0.0252,
+      "max_ms": 0.7895,
+      "mean_ms": 0.007
+    },
+    "aes_gcm_roundtrip": {
+      "n": 150,
+      "p50_ms": 0.1977,
+      "p95_ms": 0.5107,
+      "p99_ms": 0.7591,
+      "max_ms": 2.2009,
+      "mean_ms": 0.2411
+    }
+  },
+  "rss_bytes": 78258176
+}

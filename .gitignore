@@ -1,0 +1,14 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.env.example
+*.log
+*.db
+*.sqlite
+.cache/
+coverage/
+.DS_Store
+
+.vapid-keys.local

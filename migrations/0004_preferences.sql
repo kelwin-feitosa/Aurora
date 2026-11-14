@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS preferences (
+ id INTEGER PRIMARY KEY CHECK(id=1),
+ event_reminder_minutes INTEGER NOT NULL DEFAULT 120,
+ task_reminder_minutes INTEGER NOT NULL DEFAULT 1440,
+ updated_at INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO preferences(id) VALUES(1);

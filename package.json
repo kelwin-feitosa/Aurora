@@ -1,0 +1,44 @@
+{
+  "name": "aurora-academico",
+  "version": "2.2.0-rc.1",
+  "private": true,
+  "type": "module",
+  "description": "Aurora 2.2 — Assistente acadêmico pessoal, PWA, Web Push opcional, pré-homologação externa",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --experimental-sqlite --test tests/*.test.mjs",
+    "bench": "node --disable-warning=ExperimentalWarning --experimental-strip-types bench/benchmark.mjs",
+    "dev": "node --experimental-strip-types --experimental-sqlite scripts/dev-server.mjs",
+    "deploy": "node scripts/predeploy-check.mjs && npm run build && wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply AURORA_DB --local",
+    "migrate:remote": "wrangler d1 migrations apply AURORA_DB --remote",
+    "check": "npm run typecheck && npm run test && npm run bench",
+    "build": "node scripts/build-ui.mjs",
+    "setup": "node scripts/setup-wizard.mjs",
+    "backup:local": "node --experimental-sqlite scripts/backup-local.mjs",
+    "restore:local": "node --experimental-sqlite scripts/restore-local.mjs",
+    "lint": "node --check src/web/client.js && node --check src/web/sw.js && node --check src/web/install.js && node --check scripts/setup-wizard.mjs && node --check scripts/backup-local.mjs && node --check scripts/restore-local.mjs && node --check scripts/backup-cloud.mjs && node --check scripts/prepare-cloud-restore.mjs && node --check scripts/restore-cloud-to-new.mjs && node --check scripts/d1-backup-crypto.mjs && node --check scripts/create-vapid-keys.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "release:gate": "npm run verify && node scripts/doctor.mjs --strict && node scripts/predeploy-check.mjs",
+    "bench:scientific": "node --disable-warning=ExperimentalWarning --experimental-strip-types bench/evaluate-synthetic-2.0.mjs",
+    "verify": "npm run build && npm run lint && npm run typecheck && npm test && npm run smoke:http && npm run bench && npm run bench:d1 && npm run bench:multi && npm run audit:pwa && npm run security:check && npm run doctor",
+    "security:check": "node scripts/security-check.mjs",
+    "schema:status": "node --experimental-sqlite scripts/schema-status.mjs",
+    "bench:d1": "node --disable-warning=ExperimentalWarning --experimental-sqlite --experimental-strip-types bench/measure-d1-queries.mjs",
+    "smoke:http": "node tests/smoke-http.mjs",
+    "audit:pwa": "node scripts/pwa-audit.mjs",
+    "predeploy:check": "node scripts/predeploy-check.mjs",
+    "backup:cloud": "node scripts/backup-cloud.mjs",
+    "restore:cloud:prepare": "node scripts/prepare-cloud-restore.mjs",
+    "restore:cloud:new": "node scripts/restore-cloud-to-new.mjs",
+    "push:keys": "node scripts/create-vapid-keys.mjs",
+    "bench:multi": "node --disable-warning=ExperimentalWarning --experimental-sqlite --experimental-strip-types bench/measure-multi-queries.mjs"
+  },
+  "engines": {
+    "node": ">=22.10.0"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "wrangler": "^4.0.0"
+  }
+}

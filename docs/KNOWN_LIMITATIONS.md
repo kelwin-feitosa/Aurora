@@ -1,0 +1,18 @@
+> **Nota de versão 2.0:** esta lista inclui histórico anterior. As evidências, limites atualizados e pendências atuais estão em [HOMOLOGATION-2.0.md](HOMOLOGATION-2.0.md), [AUDIT-2.0.md](AUDIT-2.0.md) e [BENCHMARK-2.0.md](BENCHMARK-2.0.md). Não tratar referências a funcionalidades faltantes em versões passadas como estado atual sem conferir estes documentos.
+
+# Limitações conhecidas — Aurora 1.6 (final técnica, não homologada)
+
+1. **Contas reais Gmail e Outlook:** OAuth institucional, escopos, consentimento de administradores, sincronização, calendários, notificações e comportamento remoto não foram ensaiados com credenciais autorizadas. Adaptadores passaram apenas em testes simulados.
+2. **Cloudflare Workers/D1 Free:** nenhuma publicação real ou medição de CPU, duração, subrequests, linhas D1, quotas/retentativas foi realizada; orçamentos sintéticos não comprovam custo mensal zero.
+3. **Instalação de um clique:** wizard HTML/instância pessoal orientam, mas não registram clientes OAuth, não aprovam escopos, não publicam repositório nem provisionam conta Cloudflare automaticamente. Pré-requisitos externos legítimos persistem.
+4. **Navegadores/dispositivos:** PWA, service worker e APIs de instalação passaram em checagens HTTP/script, não em automação de navegadores ou instalação real em Android, iOS, Windows, Linux e macOS. Push web não implementado; usar alertas do calendário (dependem de integração validada).
+5. **npm/CI/segurança de dependências:** registry não acessível no ambiente; ausência de `package-lock.json`, sem `npm ci`, `npm audit`, CI remota e SAST independente verificados.
+6. **Classificador:** regras conservadoras com corpus sintético; sem avaliação real de precisão/recall autorizada. Mensagens com múltiplos compromissos e ICS são apresentadas para revisão humana, não acionam calendário automaticamente.
+7. **ICS:** subconjunto limitado; até 24 KiB/320 linhas/três VEVENT e arquivos limitados por provedor; sem recorrências RRULE, cancelamentos automáticos, anexos PDF, horário flutuante ou fuso arbitrário. Conflitos e conteúdo suspeito ficam em revisão.
+8. **Retenção e privacidade:** o histórico não guarda mais excerto em claro após migração `0010`, que limpa excertos antigos de forma irreversível; títulos/metadados continuam sendo dados pessoais. Algumas tabelas persistem para idempotência; eliminação e retenção devem ser revisadas sob LGPD.
+9. **Backup D1:** scripts implementados e testados por CLI simulada apenas; limite 16 MiB de SQL e processo de restauração novo/quarentenado; recuperação D1 real não demonstrada. Guarde senha e APP_SECRET separados e faça ensaio antes de confiar em dados reais.
+10. **Sincronização:** Gmail usa historyId, Graph delta para Inbox, não suporta todas as pastas/mensagens antigas; o gatilho cron de 15 min processa uma conta por rodada, podendo aumentar a latência para várias contas. Falhas e cursor expirado exigem plano operacional e testes remotos.
+11. **Atualização:** repositório com instalação pessoal; não há autoatualização de backend, rollback remoto testado nem atualizador gráfico universal. Processo documentado com revisão e backup.
+12. **Escala e segurança:** sem pentest independente, navegação mobile end-to-end, avaliação formal LGPD e robustez contra todos ataques em execução remota; nem gratuitidade nem disponibilidade podem ser garantidas contratualmente.
+
+**Classificação do produto:** versão final técnica pronta para **homologação externa**, não produto pronto para uso institucional em produção. Se uma exigência interna for considerada obrigatória (p.ex. atualização gráfica sem terminal), classifique-a como pendência de produto, não como concluída.

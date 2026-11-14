@@ -1,0 +1,42 @@
+name: Quality gates
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install reproducible pinned dependencies (fail closed if lockfile missing)
+        run: npm ci --no-audit --no-fund
+      - name: Audit dependency vulnerabilities
+        run: npm audit --audit-level=high
+      - name: Build web assets
+        run: npm run build
+      - name: TypeScript checking
+        run: npm run typecheck
+      - name: Unit, adapter and failure tests
+        run: npm test
+      - name: Isolated HTTP smoke
+        run: npm run smoke:http
+      - name: Offline microbenchmark
+        run: npm run bench
+      - name: Synthetic D1 statement budget test
+        run: npm run bench:d1
+      - name: Synthetic multi-item SQL budget test
+        run: npm run bench:multi
+      - name: Synthetic safety corpus
+        run: npm run bench:scientific
+      - name: Offline artifact and secret scan
+        run: npm run security:check
+      - name: Check for accidentally committed secrets
+        run: |
+          test ! -f .dev.vars
+          test ! -f .env
+          test ! -f aurora-local.db

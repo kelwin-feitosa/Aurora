@@ -1,0 +1,21 @@
+# NÃO reutilize estes valores nem comite o arquivo .dev.vars real.
+APP_SECRET=INSIRA_32_BYTES_ALEATORIOS_BASE64URL
+INSTALLATION_PASSPHRASE=INSIRA_SENHA_UNICA_MAIS_DE_20_CARACTERES
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+# Opcional: restringir ao tenant autorizado, ou 'organizations'
+MICROSOFT_TENANT=organizations
+
+# Padrão seguro: novas mensagens precisam ser confirmadas antes de criar eventos.
+AUTO_APPROVE_MODE=review
+# Somente com consentimento explícito: trusted-senders + lista EXATA de e-mails.
+# Atenção: o campo From não é prova de autenticidade (SPF/DKIM/DMARC não verificados).
+TRUSTED_SENDER_ADDRESSES=
+
+# Notificações próprias são opcionais e ficam desativadas até a configuração explícita.
+PUSH_ENABLED=0
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_CONTACT=

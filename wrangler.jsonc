@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aurora-academico",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-12",
+  "workers_dev": true,
+  "triggers": {"crons": ["*/3 * * * *"]},
+  "d1_databases": [{"binding": "DB", "database_name": "aurora-pessoal", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations"}],
+  "vars": {"PUBLIC_ORIGIN": "https://YOUR-SUBDOMAIN.workers.dev", "SYNC_LIMIT": "1"}
+}
