@@ -91,3 +91,24 @@ test('Revisão manual pode ser ignorada com confirmação; não ignora evento j�
   r=await handle(req(true),env);assert.equal(r.status,409);
  }finally{close()}
 });
+
+
+test('SW: activation messages require an identified same-origin client',()=>{
+ const listeners={};
+ let activations=0;
+ const scope={
+  location:{origin},
+  addEventListener:(type,handler)=>{listeners[type]=handler;},
+  skipWaiting:()=>{activations++;}
+ };
+ vm.runInNewContext(SERVICE_WORKER,{self:scope,URL});
+ assert.equal(typeof listeners.message,'function');
+ for(const source of [null,{}, {url:'invalid-url'}, {url:'https://attacker.example/'}, {url:origin+'.attacker.example/page'}]){
+  listeners.message({data:{type:'SKIP_WAITING'},source});
+ }
+ assert.equal(activations,0,'unknown and foreign senders must be rejected');
+ listeners.message({data:{type:'UNKNOWN'},source:{url:origin+'/dashboard'}});
+ assert.equal(activations,0);
+ listeners.message({data:{type:'SKIP_WAITING'},source:{url:origin+'/dashboard'}});
+ assert.equal(activations,1,'trusted same-origin clients may activate the update');
+});
