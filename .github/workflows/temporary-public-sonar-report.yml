@@ -1,0 +1,66 @@
+# Temporary read-only diagnostic. No checkout, credentials, application changes or deployment.
+name: TEMP public SonarCloud diagnostics
+on:
+  push:
+    branches: [chore/read-sonar-public-report-2026-11]
+    paths:
+      - '.github/workflows/temporary-public-sonar-report.yml'
+permissions:
+  contents: read
+jobs:
+  public-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Read public endpoints without token
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, urllib.request, urllib.parse, urllib.error
+          from collections import Counter
+          projects = ["kelwin-feitosa_Aurora", "kelwin-feitosa_FluteOMR", "kelwin-feitosa_kelwin-hub"]
+          metrics = "ncloc,bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,security_rating,reliability_rating,sqale_rating"
+          def query(path, params):
+              url = "https://sonarcloud.io/api/" + path + "?" + urllib.parse.urlencode(params)
+              req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "github-actions-unauthenticated-public-project-read"})
+              try:
+                  with urllib.request.urlopen(req, timeout=18) as response:
+                      return response.status, json.load(response)
+              except urllib.error.HTTPError as e:
+                  return e.code, {"error": e.read(500).decode("utf-8", errors="replace")}
+              except Exception as e:
+                  return "NETWORK_ERROR", {"error": repr(e)[:240]}
+          for project in projects:
+              report = {"project": project, "access": "unauthenticated_public_read_only"}
+              for field, endpoint, args in [
+                  ("measures", "measures/component", {"component": project, "metricKeys": metrics}),
+                  ("quality_gate", "qualitygates/project_status", {"projectKey": project}),
+                  ("issues", "issues/search", {"componentKeys": project, "ps": 100, "resolved": "false"}),
+                  ("hotspots", "hotspots/search", {"projectKey": project, "ps": 100})
+              ]:
+                  status, data = query(endpoint, args)
+                  entry = {"http_status": status}
+                  if status == 200:
+                      if field == "measures":
+                          entry["measures"] = data.get("component", {}).get("measures", [])
+                      elif field == "quality_gate":
+                          entry["status"] = data.get("projectStatus", {})
+                      elif field == "issues":
+                          findings = data.get("issues", [])
+                          entry["total"] = data.get("total")
+                          entry["counts"] = dict(Counter(str(i.get("severity")) for i in findings))
+                          entry["first_issues"] = [
+                              {k:i.get(k) for k in ["key","rule","severity","type","component","line","message","status","cleanCodeAttribute"]}
+                              for i in findings[:100]
+                          ]
+                      elif field == "hotspots":
+                          entry["total"] = data.get("paging",{}).get("total")
+                          entry["first_hotspots"] = [
+                              {k:i.get(k) for k in ["key","component","line","message","status","vulnerabilityProbability"]}
+                              for i in data.get("hotspots",[])[:40]
+                          ]
+                  else:
+                      entry["error"] = data.get("error", "unavailable")
+                  report[field] = entry
+              print("SONAR_PUBLIC_REPORT " + json.dumps(report, ensure_ascii=False, separators=(",",":")), flush=True)
+          PY
