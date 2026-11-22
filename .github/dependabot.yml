@@ -1,8 +1,17 @@
 # Dependabot only opens PRs; it does not deploy or merge updates.
-# npm dependency updates are intentionally deferred: the main branch lacks
-# package-lock.json while the CI uses npm ci, which requires a lockfile.
+# npm lockfile exists; dependency changes require npm ci and quality gates.
 version: 2
 updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    groups:
+      routine-npm:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
