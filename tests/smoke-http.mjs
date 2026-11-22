@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Isolated localhost HTTP smoke; never touches the user's SQLite database. */
 import {spawn} from 'node:child_process';
+import {request as httpRequest} from 'node:http';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -18,6 +19,21 @@ try{
   await new Promise(resolve=>setTimeout(resolve,80));
  }
  assert.ok(logged,'Servidor local não respondeu');
+
+ // Absolute-form or protocol-relative request targets may not redirect the
+ // local adapter to a different origin, even if a non-browser client sends them.
+ for(const unsafe of ['http://attacker.invalid/steal','//attacker.invalid/steal']){
+  const status=await new Promise((resolve,reject)=>{
+   const req=httpRequest({hostname:'127.0.0.1',port,path:unsafe,method:'GET'},response=>{
+    response.resume();
+    response.on('end',()=>resolve(response.statusCode));
+   });
+   req.on('error',reject);
+   req.end();
+  });
+  assert.equal(status,400,'unsafe HTTP request target rejected');
+ }
+
  let r=await fetch(origin+'/');assert.equal(r.status,200);
  r=await fetch(origin+'/api/data');assert.equal(r.status,401);
  r=await fetch(origin+'/api/login',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({passphrase:pass})});
