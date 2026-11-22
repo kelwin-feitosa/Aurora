@@ -30,6 +30,13 @@ self.addEventListener('fetch',event=>{
  })());
 });
 self.addEventListener('message',event=>{
+ // Only a same-origin browser client may request a service-worker activation.
+ // Reject unknown senders and malformed URLs instead of trusting the payload.
+ const senderUrl=event.source?.url;
+ if(typeof senderUrl!=='string')return;
+ let sameOrigin=false;
+ try{sameOrigin=new URL(senderUrl).origin===self.location.origin;}catch{return;}
+ if(!sameOrigin)return;
  if(event.data?.type==='SKIP_WAITING')self.skipWaiting();
  // No authentication data, inbox state or tokens ever travel through this channel.
 });
