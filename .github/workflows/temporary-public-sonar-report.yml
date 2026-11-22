@@ -35,7 +35,7 @@ jobs:
               for field, endpoint, args in [
                   ("measures", "measures/component", {"component": project, "metricKeys": metrics}),
                   ("quality_gate", "qualitygates/project_status", {"projectKey": project}),
-                  ("issues", "issues/search", {"componentKeys": project, "ps": 100, "resolved": "false"}),
+                  ("issues", "issues/search", {"componentKeys": project, "ps": 500, "resolved": "false"}),
                   ("hotspots", "hotspots/search", {"projectKey": project, "ps": 100})
               ]:
                   status, data = query(endpoint, args)
@@ -51,7 +51,7 @@ jobs:
                           entry["counts"] = dict(Counter(str(i.get("severity")) for i in findings))
                           entry["first_issues"] = [
                               {k:i.get(k) for k in ["key","rule","severity","type","component","line","message","status","cleanCodeAttribute"]}
-                              for i in findings[:100]
+                              for i in findings if i.get('type') in ('BUG','VULNERABILITY') or i.get('severity') == 'BLOCKER'
                           ]
                       elif field == "hotspots":
                           entry["total"] = data.get("paging",{}).get("total")
