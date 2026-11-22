@@ -15,7 +15,19 @@ createServer(async(req,res)=>{
    chunks.push(chunk);}
   const body=Buffer.concat(chunks);
   const headers=new Headers();for(const [k,v]of Object.entries(req.headers)){if(v)headers.set(k,Array.isArray(v)?v.join(','):v);}
-  const request=new Request(origin+req.url,{method:req.method,headers,body:['GET','HEAD'].includes(req.method)?undefined:body});
+  // Only origin-form URLs from the local HTTP client may reach the worker.
+  // A proxy-style absolute target or a protocol-relative target is never trusted.
+  const rawPath=req.url??'';
+  let target;
+  try{target=new URL(rawPath,origin);}catch{
+   res.writeHead(400,{'Content-Type':'application/json'});
+   res.end(JSON.stringify({ok:false,error:'INVALID_REQUEST_TARGET'}));return;
+  }
+  if(!rawPath.startsWith('/')||rawPath.startsWith('//')||target.origin!==origin){
+   res.writeHead(400,{'Content-Type':'application/json'});
+   res.end(JSON.stringify({ok:false,error:'INVALID_REQUEST_TARGET'}));return;
+  }
+  const request=new Request(target,{method:req.method,headers,body:['GET','HEAD'].includes(req.method)?undefined:body});
   const answer=await worker.fetch(request,env);res.writeHead(answer.status,Object.fromEntries(answer.headers.entries()));res.end(Buffer.from(await answer.arrayBuffer()));
  }catch(e){res.statusCode=500;res.end('Falha local');}
 }).listen(port,'127.0.0.1',()=>console.log(`Aurora DEV local: ${origin} (somente loopback)`));
